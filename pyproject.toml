@@ -1,0 +1,13 @@
+[project]
+name = "autobench"
+version = "0.1.0"
+description = "Recursive self-improvement coding agent harness system"
+requires-python = ">=3.11"
+dependencies = ["psutil"]
+
+[project.scripts]
+autobench = "autobench.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

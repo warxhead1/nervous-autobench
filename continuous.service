@@ -1,0 +1,47 @@
+[Unit]
+Description=autobench continuous-mode daemon (24/7 self-improvement)
+Documentation=file:%h/projects/nervous-bus/autobench/continuous_README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Run as the invoking user (this is a --user unit). Adjust WorkingDirectory
+# if your checkout lives elsewhere.
+WorkingDirectory=%h/projects/nervous-bus
+# Environment: pin MINIMAX_API_KEY (or ANTHROPIC_API_KEY) in
+# ~/.config/systemd/user/autobench-continuous.service.d/env.conf as a drop-in
+# rather than hard-coding it here.
+Environment=PYTHONUNBUFFERED=1
+Environment=AUTOBENCH_OBS_DISABLE_PIPE=1
+Environment=AUTOBENCH_LOG_LEVEL=INFO
+
+ExecStart=/usr/bin/env python3 -m autobench.continuous \
+    --max-requests 14000 \
+    --window-seconds 18000 \
+    --sessions-per-window 30 \
+    --improver minimax \
+    --max-iterations 5 \
+    run
+
+# Graceful shutdown: the daemon installs SIGTERM/SIGINT handlers and finishes
+# the current session before exiting; give it up to 5 minutes.
+KillSignal=SIGTERM
+TimeoutStopSec=300
+
+# Resource hygiene — keep the daemon from gobbling the box if it ever runs
+# away. Tune to taste; the workload is mostly network + CPU.
+CPUQuota=200%
+MemoryHigh=2G
+MemoryMax=4G
+
+# Auto-restart on crash but not on clean exit.
+Restart=on-failure
+RestartSec=30s
+
+# Logging goes to the user journal.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
