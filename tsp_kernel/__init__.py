@@ -1044,10 +1044,14 @@ class TSPKernel(FunSearchKernel):
         self.llm_requests = 0  # MiniMax billing unit is requests, not dollars
         self._llm_lock = threading.Lock()  # guards llm_requests across threads
         self._plateau_count = 0   # generations since the last fitness improvement
+        self._island_plateau_counts: dict = {}  # per-island plateau counter
+        self._island_prev_best: dict = {}       # per-island previous best fitness
+        self._island_age: dict = {}             # per-island generations since last reset
         self._run_start = 0.0     # wall-clock start of run()
         self.stop_reason = ""     # why the run loop ended (horizon governance)
         self.run_id = new_ulid()  # sortable ULID, per the tsp.* schemas
         self._active_hint: str = ""  # strategic hint from deer query on plateau
+        self._last_published_best_fitness: float = 0.0  # tracks last emitted best for improvement events
 
         if config.output_dir:
             config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1261,6 +1265,10 @@ class TSPKernel(FunSearchKernel):
         logger.info("Initialized %d islands with %d programs each",
                     self.config.n_islands, self.config.population_per_island)
 
+        # Pre-seed island age to 0 so gen-0 health events report age=0 not 1
+        for island in self.islands:
+            self._island_age[island.id] = 0
+
         from ..kernel_base import _git_commit_short
         self._publish("tsp.kernel.started.v1", {
             "run_id": self.run_id,
@@ -1360,6 +1368,51 @@ class TSPKernel(FunSearchKernel):
             )
         eval_seconds = time.time() - t_eval0
 
+        # Update per-island plateau counters and age
+        for island in self.islands:
+            prev = self._island_prev_best.get(island.id, -1.0)
+            curr = island.best_program.fitness if island.best_program else 0.0
+            if curr - prev > self.config.plateau_epsilon:
+                self._island_plateau_counts[island.id] = 0
+            else:
+                self._island_plateau_counts[island.id] = self._island_plateau_counts.get(island.id, 0) + 1
+            self._island_prev_best[island.id] = max(prev, curr)
+            self._island_age[island.id] = self._island_age.get(island.id, 0) + 1
+
+        ts_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        # Emit per-island health snapshots
+        for island in self.islands:
+            self._publish("autobench.island.health.v1", {
+                "run_id": self.run_id,
+                "generation": self.generation,
+                "prefix": "tsp",
+                "island_id": island.id,
+                "best_fitness": round(island.best_program.fitness if island.best_program else 0.0, 6),
+                "plateau_count": self._island_plateau_counts.get(island.id, 0),
+                "population_size": len(island.population),
+                "age_since_last_reset": self._island_age.get(island.id, 0),
+                "timestamp": ts_now,
+            })
+
+        # Emit budget gauge every 5 generations
+        if self.generation % 5 == 0 or self.generation == 0:
+            avg_rqst_per_gen = self.llm_requests / max(1, self.generation + 1)
+            max_req = self.config.max_requests
+            if max_req is not None and avg_rqst_per_gen > 0:
+                est_remaining = int((max_req - self.llm_requests) / avg_rqst_per_gen)
+            else:
+                est_remaining = None
+            self._publish("autobench.budget.gauge.v1", {
+                "run_id": self.run_id,
+                "generation": self.generation,
+                "prefix": "tsp",
+                "requests_used": self.llm_requests,
+                "max_requests": max_req,
+                "estimated_remaining_generations": max(0, est_remaining) if est_remaining is not None else None,
+                "timestamp": ts_now,
+            })
+
         # Record generation stats
         all_best = [island.best_program for island in self.islands if island.best_program]
         if all_best:
@@ -1424,6 +1477,21 @@ class TSPKernel(FunSearchKernel):
                 ],
             })
 
+            # Emit best_fitness_improved event if global best improved by > 1e-6
+            if best.fitness - self._last_published_best_fitness > 1e-6:
+                improvement_delta = best.fitness - self._last_published_best_fitness
+                ts_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                self._publish("tsp.best_fitness_improved.v1", {
+                    "run_id": self.run_id,
+                    "generation": self.generation,
+                    "prefix": "tsp",
+                    "best_fitness": round(best.fitness, 6),
+                    "improvement_delta": round(improvement_delta, 6),
+                    "island_id": best.island,
+                    "timestamp": ts_now,
+                })
+                self._last_published_best_fitness = best.fitness
+
         self.generation += 1
 
     def global_best_fitness(self) -> float:
@@ -1460,6 +1528,8 @@ class TSPKernel(FunSearchKernel):
         self.initialize()
         self._run_start = time.time()
         self._plateau_count = 0
+        self._last_published_best_fitness = 0.0
+        self._island_age = {}
         self.stop_reason = ""
 
         for _ in range(self.generations):

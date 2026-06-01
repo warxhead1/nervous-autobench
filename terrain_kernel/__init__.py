@@ -52,7 +52,10 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import re
+import subprocess
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -556,6 +559,7 @@ class TerrainKernel(FunSearchKernel):
     """
 
     kernel_name = "terrain"
+    BUS_CHANNEL_PREFIX = "terrain"
 
     def __init__(self, config: KernelConfig) -> None:
         super().__init__(config)
@@ -648,6 +652,102 @@ class TerrainKernel(FunSearchKernel):
             )
             programs.append(prog)
         return programs
+
+    # ------------------------------------------------------------------
+    # Bus publishing — terrain.kernel.* channels
+    # ------------------------------------------------------------------
+
+    def _find_nervous_bin(self) -> str | None:
+        candidates = [
+            Path(__file__).parent.parent.parent / "sdk" / "shell" / "nervous",
+            Path.home() / "projects" / "nervous-bus" / "sdk" / "shell" / "nervous",
+            Path("/usr/local/bin/nervous"),
+            Path("/usr/bin/nervous"),
+        ]
+        for p in candidates:
+            if p.is_file():
+                return str(p)
+        return None
+
+    def _publish(self, channel: str, data: dict) -> bool:
+        """Write event to bus debug log and optionally the nervous CLI.
+
+        Source is hardcoded to '/autobench/terrain_kernel' to match the schema
+        const.
+        """
+        envelope = {
+            "specversion": "1.0",
+            "id": uuid.uuid4().urn,
+            "source": "/autobench/terrain_kernel",
+            "type": channel,
+            "datacontenttype": "application/json",
+            "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "data": data,
+        }
+        payload = json.dumps(envelope)
+
+        debug_path = Path.home() / ".cache" / "nervous-bus" / "debug.jsonl"
+        debug_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(debug_path, "a") as f:
+                f.write(payload + "\n")
+            if self.config.bus_verbose:
+                logger.info("bus: published %s", channel)
+        except Exception as e:
+            logger.debug("bus: write to debug log failed: %s", e)
+
+        if self._nervous_bin:
+            try:
+                env = dict(os.environ)
+                env["NBUS_SKIP_VALIDATION"] = "1"
+                env["NERVOUS_NO_ZELLIJ"] = "1"
+                env["NERVOUS_NO_REDIS"] = "1"
+                proc = subprocess.Popen(
+                    [self._nervous_bin, "publish", channel, payload],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=env,
+                )
+                proc.wait(timeout=2)
+            except Exception:
+                pass
+
+        return True
+
+    def _publish_started(self) -> None:
+        """Emit terrain.kernel.started.v1 when the run begins."""
+        from ..kernel_base import _git_commit_short
+        self._publish("terrain.kernel.started.v1", {
+            "run_id": self.run_id,
+            "git_commit": _git_commit_short(),
+            "instances": self.config.instances,
+            "n_islands": self.config.n_islands,
+            "population_per_island": self.config.population_per_island,
+            "generations": self.config.generations,
+            "plateau_generations": self.config.plateau_generations,
+            "temperature": self.config.temperature,
+            "plateau_hint": self.config.plateau_hint,
+            "sandbox_type": self.executor.sandbox_type,
+        })
+
+    def _publish_completed(self, programs: list[CandidateProgram]) -> None:
+        """Emit terrain.kernel.completed.v1 when the run ends."""
+        best = programs[0] if programs else None
+        self._publish("terrain.kernel.completed.v1", {
+            "run_id": self.run_id,
+            "total_generations": self.generation,
+            "stop_reason": self.stop_reason,
+            "llm_requests": self.llm_requests,
+            "best_program": {
+                "id": best.id if best else "",
+                "fitness": best.fitness if best else 0.0,
+                "island": best.island if best else -1,
+                "generation": best.generation if best else -1,
+                "source": best.source if best else "",
+                "terrain_code": best.code if best else "",
+            } if best else None,
+            "history": self.history,
+        })
 
     # ------------------------------------------------------------------
     # Result saving
