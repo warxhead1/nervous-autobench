@@ -416,7 +416,7 @@ class BenchmarkEvaluator:
             and not os.environ.get("AUTOBENCH_DISABLE_DEFAULT_JUDGE")
         ):
             try:
-                from autobench.default_judge_factory import make_minimax_judge_factory
+                from autobench.llm.judge import make_minimax_judge_factory
                 self.judge_factory = make_minimax_judge_factory()
             except Exception:
                 # Never let factory construction prevent evaluator init —

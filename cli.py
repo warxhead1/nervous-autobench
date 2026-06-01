@@ -213,7 +213,7 @@ def cmd_replay(args):
     iteration, applies ``--override`` mutations, replays the exact same
     benchmark cases, and prints (or writes) a comparison report.
     """
-    from .replay import (
+    from .rsi.replay import (
         CounterfactualRunner,
         ReplayLoader,
         filter_cases_by_id,
