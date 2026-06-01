@@ -347,9 +347,14 @@ class NervousBusPublisher:
 
     def _detect_sdk_path(self) -> Path:
         """Detect the nervous shell SDK path."""
+        import shutil
+        # Prefer `nervous` on PATH (installed via nervous setup or ~/.local/bin symlink).
+        if shutil.which("nervous"):
+            return Path(shutil.which("nervous"))
+        # Fall back to sibling nervous-bus checkout (submodule layout).
         candidates = [
+            Path(__file__).parent.parent / "sdk" / "shell" / "nervous",
             Path("sdk/shell/nervous"),
-            Path("/home/eric/projects/nervous-bus/sdk/shell/nervous"),
         ]
         for candidate in candidates:
             if candidate.exists():

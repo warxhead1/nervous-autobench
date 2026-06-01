@@ -911,7 +911,7 @@ def save_plots(results):
         ax4.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig("/home/eric/projects/nervous-bus/autobench/rsi_convergence_plots.png", dpi=150)
+        plt.savefig(Path(__file__).parent / "rsi_convergence_plots.png", dpi=150)
         print("\nPlots saved to rsi_convergence_plots.png")
     except Exception as e:
         print(f"\nCould not save plots: {e}")

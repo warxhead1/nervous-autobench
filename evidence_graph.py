@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS schema_events (
 class EvidenceGraphDB:
     """Bitloops-style evidence graph store."""
 
-    def __init__(self, path: str = "/home/eric/.cache/nervous-bus/evidence_graph.db"):
+    def __init__(self, path: str = str(Path.home() / ".cache" / "nervous-bus" / "evidence_graph.db")):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init()

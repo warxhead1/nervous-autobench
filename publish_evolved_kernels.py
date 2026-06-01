@@ -22,7 +22,8 @@ from pathlib import Path
 # Paths
 # --------------------------------------------------------------------------- #
 
-_BENCH = Path("/home/eric/projects/nervous-bus/benchmarks/curriculum/2026-05-31")
+import os
+_BENCH = Path(os.environ.get("AUTOBENCH_BENCH_DIR", Path.home() / ".cache" / "nervous-bus" / "benchmarks"))
 PHASE_JSON  = _BENCH / "phase_results_gen16.json"
 LATENT_JSON = _BENCH / "latent_results_gen21.json"
 SPH_JSON    = _BENCH / "sph_results_gen31.json"

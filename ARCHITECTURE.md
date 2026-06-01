@@ -118,7 +118,7 @@ class HarnessConfig:
 
 ### Source Files
 
-- **Core types**: `/home/eric/projects/nervous-bus/autobench/core.py`
+- **Core types**: `core.py`
   - `HarnessConfig` (lines 57-90)
   - `HarnessResult` (lines 93-133)
   - `Verdict` enum (lines 18-26)
@@ -208,7 +208,7 @@ def convergence_check(self, iteration_history) -> bool:
 
 ### Source Files
 
-- **RSI loop core**: `/home/eric/projects/nervous-bus/autobench/rsi_loop.py`
+- **RSI loop core**: `rsi_loop.py`
   - `RSILoop` (lines 136-265)
   - `SelfImprovingHarness` (lines 32-136)
   - `improve_harness()` (lines 138-231)
@@ -297,7 +297,7 @@ RSS (Resident Set Size) is not directly available from Python's `subprocess`. Cu
 
 ### Source Files
 
-- **Executor**: `/home/eric/projects/nervous-bus/autobench/sandbox.py`
+- **Executor**: `sandbox.py`
   - `SandboxedExecutor` class (lines 153-424)
   - `LANGUAGE_RUNNERS` dict (lines 42-134)
   - `ExecutionResult` dataclass (lines 137-150)
@@ -358,7 +358,7 @@ Phase 3 (future):    LLM-generated fresh problems (deer-flow integration)
 
 ### Source Files
 
-- **Benchmark types**: `/home/eric/projects/nervous-bus/autobench/evaluator.py`
+- **Benchmark types**: `evaluator.py`
   - `BenchmarkCase` (lines 29-68)
   - `BenchmarkResult` (lines 71-102)
 
@@ -421,7 +421,7 @@ Pareto optimality is tracked across quality/cost/speed dimensions:
 
 ### Source Files
 
-- **Evaluator**: `/home/eric/projects/nervous-bus/autobench/evaluator.py`
+- **Evaluator**: `evaluator.py`
   - `BenchmarkEvaluator` (lines 105-397)
   - `emit_verdict()` (lines 245-335)
   - `score_harness()` (lines 356-396)
@@ -550,8 +550,8 @@ Agent code ──▶ verdict signal (CE/RE/TLE/MLE/WA/OK) ──▶ autobench ev
 
 ### Source Files
 
-- **CLI topology (future)**: `/home/eric/projects/nervous-bus/autobench/cli.py` (currently single-agent)
-- **Repo analyzer for change type**: `/home/eric/projects/nervous-bus/autobench/repo_analyzer.py`
+- **CLI topology (future)**: `cli.py` (currently single-agent)
+- **Repo analyzer for change type**: `repo_analyzer.py`
   - `RepoAnalyzer` (lines 25-62)
   - `classify_change()` (lines 88-173)
 
@@ -624,7 +624,7 @@ From `test_scaffolder.py` lines 176-208:
 
 ### Source Files
 
-- **Curveball generator**: `/home/eric/projects/nervous-bus/autobench/test_scaffolder.py`
+- **Curveball generator**: `test_scaffolder.py`
   - `CurveballGenerator` (lines 159-381)
   - `CurveballCase` (lines 148-157)
   - `generate_curveballs()` (lines 176-208)
@@ -703,7 +703,7 @@ This produces a Pareto surface rather than a single optimal point.
 ### Source Files
 
 - **Pareto tracking (future)**: Not yet implemented
-- **Current scoring**: `/home/eric/projects/nervous-bus/autobench/evaluator.py` lines 356-396 (`score_harness`)
+- **Current scoring**: `evaluator.py` lines 356-396 (`score_harness`)
 
 ---
 
@@ -713,7 +713,7 @@ This produces a Pareto surface rather than a single optimal point.
 
 **Goal**: Single-language sandbox execution with verdict detection.
 
-**Status**: Implemented in `/home/eric/projects/nervous-bus/autobench/sandbox.py`
+**Status**: Implemented in `sandbox.py`
 
 **Delivered**:
 - `SandboxedExecutor` with 14-language support
@@ -733,7 +733,7 @@ This produces a Pareto surface rather than a single optimal point.
 
 **Goal**: Closed-loop harness improvement with convergence detection.
 
-**Status**: Partially implemented in `/home/eric/projects/nervous-bus/autobench/rsi_loop.py`
+**Status**: Partially implemented in `rsi_loop.py`
 
 **Delivered**:
 - `RSILoop` class with convergence check
@@ -776,9 +776,9 @@ This produces a Pareto surface rather than a single optimal point.
 - [ ] `role_router.py` observation database integration
 
 **Key Files**:
-- Session state: `/home/eric/projects/nervous-bus/autobench/session_state.py`
-- Role predicate: `/home/eric/projects/nervous-bus/autobench/role_predicate.py`
-- Tests: `/home/eric/projects/nervous-bus/autobench/role_predicate_test.py`
+- Session state: `session_state.py`
+- Role predicate: `role_predicate.py`
+- Tests: `role_predicate_test.py`
 - Deer-flow: `~/projects/deer-flow/` (external to nervous-bus)
 - Adapter: `nervous-bus/sdk/python/nbus.py` → `deer obs bus`
 

@@ -4,9 +4,10 @@ import json
 import sys
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 
 # Ensure the package is importable
-sys.path.insert(0, "/home/eric/projects/nervous-bus")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from autobench.session_state import (
     SessionState,
