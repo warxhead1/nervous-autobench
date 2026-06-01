@@ -66,7 +66,7 @@ def test_sign_change_density_analytical_gyroid():
     Uses oracle_calibration._compute_sign_change_density (pure numpy).
     Gyroid is triply periodic → very high sign-change density.
     """
-    from autobench.oracle_calibration import _compute_sign_change_density
+    from autobench.audit.oracle_calibration import _compute_sign_change_density
     from autobench.sdf_kernel import _sdf_gyroid
 
     density = _compute_sign_change_density(_sdf_gyroid, grid_size=24, lo=-1.5, hi=1.5)
@@ -86,7 +86,7 @@ def test_sign_change_density_round_box():
     Round box is a simple closed convex surface — very few zero crossings on
     the 24^3 grid compared to gyroid.  The 20x ratio is the key discriminative signal.
     """
-    from autobench.oracle_calibration import _compute_sign_change_density
+    from autobench.audit.oracle_calibration import _compute_sign_change_density
     from autobench.sdf_kernel import _sdf_round_box
 
     density = _compute_sign_change_density(_sdf_round_box, grid_size=24, lo=-1.5, hi=1.5)
@@ -97,7 +97,7 @@ def test_sign_change_density_round_box():
 
 def test_gyroid_has_higher_density_than_round_box():
     """Gyroid density must be at least 5x round_box — strong discriminative signal."""
-    from autobench.oracle_calibration import _compute_sign_change_density
+    from autobench.audit.oracle_calibration import _compute_sign_change_density
     from autobench.sdf_kernel import _sdf_gyroid, _sdf_round_box
 
     gyroid_density = _compute_sign_change_density(_sdf_gyroid, 24, -1.5, 1.5)

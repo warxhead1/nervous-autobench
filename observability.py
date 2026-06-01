@@ -1661,9 +1661,9 @@ def _improver_delta_diff(
     are identical we still emit (``no_change=true``) — "improver didn't
     actually change anything" is itself useful signal.
     """
-    # Late import: harness_diff is a peer module in this package; importing
-    # at module top would tangle import order during partial refactors.
-    from .harness_diff import diff_harnesses
+    # Late import: harness_diff lives in autobench.audit; importing at module
+    # top would tangle import order during partial refactors.
+    from autobench.audit.harness_diff import diff_harnesses
 
     diff_payload = diff_harnesses(before, after)
     data: dict[str, Any] = {"iteration": int(iteration), **diff_payload}

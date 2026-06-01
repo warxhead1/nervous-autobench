@@ -11,7 +11,7 @@ bounded before they reach the bus.
 
 from __future__ import annotations
 
-from autobench.ahe import Prediction, clip_prediction_to_feasible
+from autobench.audit.ahe import Prediction, clip_prediction_to_feasible
 
 
 def test_no_clip_when_already_feasible():

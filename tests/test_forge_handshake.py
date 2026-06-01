@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
-from autobench.continuous import (
+from autobench.daemons.continuous import (
     BEAD_ID_ENV,
     ContinuousModeDaemon,
 )
@@ -376,7 +376,7 @@ def test_bench_completed_falls_back_when_no_stats(
 
 def test_continuous_cli_accepts_bead_id_flag() -> None:
     """argparse exposes --bead-id and forwards it through to args.bead_id."""
-    from autobench.continuous import main as continuous_main  # noqa: F401
+    from autobench.daemons.continuous import main as continuous_main  # noqa: F401
 
     import argparse as _ap
     # We don't want to actually run the daemon — just verify argparse wiring.
@@ -391,7 +391,7 @@ def test_continuous_main_help_mentions_bead_id(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """End-to-end: the real main() help text includes --bead-id."""
-    from autobench.continuous import main as continuous_main
+    from autobench.daemons.continuous import main as continuous_main
 
     with pytest.raises(SystemExit):
         continuous_main(["--help"])

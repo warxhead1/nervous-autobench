@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from autobench.invalidation import (
+from autobench.audit.invalidation import (
     InvalidationEngine,
     InvalidationResult,
     InvalidationStore,

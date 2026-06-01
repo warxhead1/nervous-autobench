@@ -276,7 +276,7 @@ def _build_runner_for_three_advocates(
 
     def _patched_run_one(index: int, cases: list[Any], **_kw: Any):
         from autobench.rsi_loop import SelfImprovingHarness
-        from autobench.budget_guard import BudgetGuard  # noqa: F401 — kept for parity
+        from autobench.audit.budget_guard import BudgetGuard  # noqa: F401 — kept for parity
 
         adv_id = runner._advocate_id_for(index)
         obs = runner._make_observability()

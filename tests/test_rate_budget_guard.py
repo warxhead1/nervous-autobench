@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from autobench.budget_guard import (
+from autobench.audit.budget_guard import (
     BudgetExceeded,
     BudgetGuard,
     CompositeBudgetGuard,

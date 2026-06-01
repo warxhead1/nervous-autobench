@@ -20,7 +20,7 @@ import jsonschema
 import pytest
 
 from autobench.core import ContextManager, HarnessConfig, RolloutProtocol
-from autobench.harness_diff import diff_harnesses
+from autobench.audit.harness_diff import diff_harnesses
 from autobench.observability import (
     AutobenchObservability,
     CHANNEL_DELTA_DIFF,

@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
-from autobench.continuous import (
+from autobench.daemons.continuous import (
     ContinuousModeDaemon,
     PromotionDecision,
     _resolve_promotion_ledger_path,

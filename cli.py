@@ -94,7 +94,7 @@ def cmd_eval(args):
 
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "autobench.repo_analyzer", "analyze",
+            [sys.executable, "-m", "autobench.audit.repo_analyzer", "analyze",
              "--repo", str(repo_path)],
             capture_output=True,
             text=True,
@@ -108,11 +108,10 @@ def cmd_eval(args):
         print(f"\nClassified change type: {change_type}")
         return result.returncode
     except FileNotFoundError:
-        from .repo_analyzer import RepoAnalyzer
-        analyzer = RepoAnalyzer(repo_path)
-        analysis = analyzer.analyze()
-        print(json.dumps(analysis, indent=2))
-        change_type = analysis.get("change_type", "unknown")
+        from autobench.audit.repo_analyzer import analyze_repo
+        analysis = analyze_repo(repo_path)
+        print(json.dumps(analysis.to_dict(), indent=2))
+        change_type = "unknown"
         print(f"\nClassified change type: {change_type}")
         return 0
     except json.JSONDecodeError:
@@ -188,7 +187,7 @@ def cmd_trigger_daemon(args):
     Subscribes to ``autobench.cycle.requested.v1`` via ``deer obs bus`` and
     runs one cycle per validated trigger. Exits after ``--max-runs`` if set.
     """
-    from .trigger_daemon import TriggerDaemon
+    from autobench.daemons.trigger_daemon import TriggerDaemon
 
     bead_id = getattr(args, "bead_id", None)
     max_runs = getattr(args, "max_runs", None)
