@@ -522,46 +522,15 @@ class Island:
 
 from ..core import Verdict  # noqa: E402  (kept local to the runner section)
 from ..sandbox import SandboxedExecutor, compile_and_run  # noqa: E402
-from ..kernel_base import FunSearchKernel  # noqa: E402
-
-
-class UnsafeSandboxError(RuntimeError):
-    """Raised when autonomy is requested but no isolating sandbox is available."""
-
-
-def ensure_sandboxed_executor(
-    *,
-    allow_unsandboxed: bool = False,
-    max_memory_mb: int = 512,
-    cpu_limit: int = 2,
-) -> SandboxedExecutor:
-    """Build the executor used to compile+run untrusted candidates, gated.
-
-    SandboxedExecutor silently downgrades ``gvisor`` -> ``subprocess`` when the
-    gVisor health check fails. We therefore inspect the *post-init* sandbox_type:
-    if it is not an isolating tier we refuse, because running unattended,
-    LLM-generated C++ without network/filesystem isolation is the exact trust
-    hazard this kernel exists to avoid. ``allow_unsandboxed`` is the explicit,
-    operator-set override for trusted local experiments.
-    """
-    executor = SandboxedExecutor(
-        sandbox_type="gvisor",
-        max_memory_mb=max_memory_mb,
-        cpu_limit=cpu_limit,
-    )
-    if executor.sandbox_type not in ("gvisor", "firecracker"):
-        if not allow_unsandboxed:
-            raise UnsafeSandboxError(
-                "TSP kernel refuses to compile/run untrusted candidate code without "
-                f"an isolating sandbox (got '{executor.sandbox_type}'). Install/enable "
-                "gVisor (rootless runsc) or pass allow_unsandboxed=True for a trusted, "
-                "attended run."
-            )
-        logger.warning(
-            "SANDBOX DEGRADED: running untrusted candidate code under '%s' "
-            "(no isolation) because allow_unsandboxed=True", executor.sandbox_type,
-        )
-    return executor
+# FunSearchKernel + ensure_sandboxed_executor + KernelConfig come from autobench.kernels.
+# We re-export them below for back-compat with existing imports inside this file.
+from ..kernels import (  # noqa: E402
+    FunSearchKernel,
+    KernelConfig,
+    ensure_sandboxed_executor,
+    UnsafeSandboxError,
+    register_kernel,
+)
 
 
 def build_candidate_source(priority_code: str, extra_code: str = "") -> str:
@@ -996,42 +965,12 @@ def evaluate_island(
 # Main kernel class
 # ---------------------------------------------------------------------------
 
-@dataclass
-class KernelConfig:
-    instances: list[str] = field(default_factory=list)
-    n_islands: int = 10
-    population_per_island: int = 20
-    generations: int = 100
-    migration_interval: int = 10
-    temperature: float = 0.9
-    compile_timeout: float = 30.0
-    run_timeout: float = 10.0
-    llm_timeout: float = 120.0  # per-call deer query timeout (seconds)
-    # Throughput: how many candidates each island generates per generation, and
-    # how many LLM calls run concurrently (MiniMax has a high request budget).
-    candidates_per_island: int = 1
-    max_concurrent_llm: int = 8
-    # Horizon governance: stop early when ANY criterion is hit. `generations`
-    # remains the hard upper bound; all unset = run the full generation cap.
-    target_fitness: float | None = None      # stop when best approx ratio >= this
-    max_requests: int | None = None          # MiniMax request budget (billing unit)
-    max_wall_seconds: float | None = None     # wall-clock budget
-    plateau_generations: int | None = None    # stop after N gens with no improvement
-    plateau_epsilon: float = 1e-4            # minimum delta that counts as improvement
-    plateau_hint: bool = True  # call deer for strategic advice when plateau fires
-    plateau_hint_model: str = "minimax-m2.7"  # model for hint calls
-    llm_call_fn: Callable[[str], str] | None = None  # will default to deer-flow call
-    output_dir: Path | None = None
-    # Sandbox / autonomy gate. Untrusted candidate code runs under gVisor; set
-    # allow_unsandboxed=True only for trusted, attended runs (see
-    # ensure_sandboxed_executor).
-    allow_unsandboxed: bool = False
-    max_memory_mb: int = 512
-    # Nervous-bus integration
-    nervous_bin: str | None = None  # path to nervous CLI; auto-detected if None
-    bus_verbose: bool = False       # log each published event
+# KernelConfig is now imported from autobench.kernels (single source of truth).
+# The duplicate definition that used to live here was removed in Phase 1 of
+# the autobench kernels restructuring.
 
 
+@register_kernel("tsp")
 class TSPKernel(FunSearchKernel):
     """FunSearch-style TSP heuristic discovery kernel."""
 
@@ -1044,14 +983,13 @@ class TSPKernel(FunSearchKernel):
         self.llm_requests = 0  # MiniMax billing unit is requests, not dollars
         self._llm_lock = threading.Lock()  # guards llm_requests across threads
         self._plateau_count = 0   # generations since the last fitness improvement
-        self._island_plateau_counts: dict = {}  # per-island plateau counter
-        self._island_prev_best: dict = {}       # per-island previous best fitness
-        self._island_age: dict = {}             # per-island generations since last reset
         self._run_start = 0.0     # wall-clock start of run()
         self.stop_reason = ""     # why the run loop ended (horizon governance)
         self.run_id = new_ulid()  # sortable ULID, per the tsp.* schemas
         self._active_hint: str = ""  # strategic hint from deer query on plateau
-        self._last_published_best_fitness: float = 0.0  # tracks last emitted best for improvement events
+        self._last_published_best_fitness: float = 0.0
+        self._island_age: dict[int, int] = {}
+        self._island_plateau_counts: dict[int, int] = {}
 
         if config.output_dir:
             config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1265,11 +1203,7 @@ class TSPKernel(FunSearchKernel):
         logger.info("Initialized %d islands with %d programs each",
                     self.config.n_islands, self.config.population_per_island)
 
-        # Pre-seed island age to 0 so gen-0 health events report age=0 not 1
-        for island in self.islands:
-            self._island_age[island.id] = 0
-
-        from ..kernel_base import _git_commit_short
+        from ..kernels.base import _git_commit_short
         self._publish("tsp.kernel.started.v1", {
             "run_id": self.run_id,
             "git_commit": _git_commit_short(),
@@ -1368,51 +1302,6 @@ class TSPKernel(FunSearchKernel):
             )
         eval_seconds = time.time() - t_eval0
 
-        # Update per-island plateau counters and age
-        for island in self.islands:
-            prev = self._island_prev_best.get(island.id, -1.0)
-            curr = island.best_program.fitness if island.best_program else 0.0
-            if curr - prev > self.config.plateau_epsilon:
-                self._island_plateau_counts[island.id] = 0
-            else:
-                self._island_plateau_counts[island.id] = self._island_plateau_counts.get(island.id, 0) + 1
-            self._island_prev_best[island.id] = max(prev, curr)
-            self._island_age[island.id] = self._island_age.get(island.id, 0) + 1
-
-        ts_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-        # Emit per-island health snapshots
-        for island in self.islands:
-            self._publish("autobench.island.health.v1", {
-                "run_id": self.run_id,
-                "generation": self.generation,
-                "prefix": "tsp",
-                "island_id": island.id,
-                "best_fitness": round(island.best_program.fitness if island.best_program else 0.0, 6),
-                "plateau_count": self._island_plateau_counts.get(island.id, 0),
-                "population_size": len(island.population),
-                "age_since_last_reset": self._island_age.get(island.id, 0),
-                "timestamp": ts_now,
-            })
-
-        # Emit budget gauge every 5 generations
-        if self.generation % 5 == 0 or self.generation == 0:
-            avg_rqst_per_gen = self.llm_requests / max(1, self.generation + 1)
-            max_req = self.config.max_requests
-            if max_req is not None and avg_rqst_per_gen > 0:
-                est_remaining = int((max_req - self.llm_requests) / avg_rqst_per_gen)
-            else:
-                est_remaining = None
-            self._publish("autobench.budget.gauge.v1", {
-                "run_id": self.run_id,
-                "generation": self.generation,
-                "prefix": "tsp",
-                "requests_used": self.llm_requests,
-                "max_requests": max_req,
-                "estimated_remaining_generations": max(0, est_remaining) if est_remaining is not None else None,
-                "timestamp": ts_now,
-            })
-
         # Record generation stats
         all_best = [island.best_program for island in self.islands if island.best_program]
         if all_best:
@@ -1477,18 +1366,40 @@ class TSPKernel(FunSearchKernel):
                 ],
             })
 
-            # Emit best_fitness_improved event if global best improved by > 1e-6
+            # Cross-cutting events (mirrored from kernels/base.py — TSP overrides
+            # step() without calling super(), so these must be duplicated here)
+            for island in self.islands:
+                self._island_age[island.id] = self._island_age.get(island.id, 0) + 1
+                self._publish("autobench.island.health.v1", {
+                    "run_id": self.run_id,
+                    "generation": self.generation,
+                    "island": island.id,
+                    "plateau_count": self._island_plateau_counts.get(island.id, 0),
+                    "population_size": len(island.population),
+                    "age_since_last_reset": self._island_age.get(island.id, 0),
+                })
+
+            if self.generation % 5 == 0 and self.config.max_requests:
+                gen_est = max(1, self.generation)
+                rate = self.llm_requests / gen_est
+                remaining_gens = int((self.config.max_requests - self.llm_requests) / rate) if rate > 0 else 0
+                self._publish("autobench.budget.gauge.v1", {
+                    "run_id": self.run_id,
+                    "generation": self.generation,
+                    "requests_used": self.llm_requests,
+                    "max_requests": self.config.max_requests,
+                    "estimated_remaining_generations": remaining_gens,
+                })
+
             if best.fitness - self._last_published_best_fitness > 1e-6:
                 improvement_delta = best.fitness - self._last_published_best_fitness
-                ts_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 self._publish("tsp.best_fitness_improved.v1", {
                     "run_id": self.run_id,
                     "generation": self.generation,
-                    "prefix": "tsp",
-                    "best_fitness": round(best.fitness, 6),
+                    "best_fitness": best.fitness,
                     "improvement_delta": round(improvement_delta, 6),
-                    "island_id": best.island,
-                    "timestamp": ts_now,
+                    "best_program_id": best.id,
+                    "best_island": best.island,
                 })
                 self._last_published_best_fitness = best.fitness
 
@@ -1528,6 +1439,7 @@ class TSPKernel(FunSearchKernel):
         self.initialize()
         self._run_start = time.time()
         self._plateau_count = 0
+        self._island_plateau_counts = {}
         self._last_published_best_fitness = 0.0
         self._island_age = {}
         self.stop_reason = ""

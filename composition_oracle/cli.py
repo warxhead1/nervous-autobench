@@ -13,7 +13,7 @@ import argparse
 import sys
 
 from . import evaluate_best_pair, evaluate_composition
-from ..tsp_kernel import ensure_sandboxed_executor as ensure_executor
+from ..kernels import ensure_sandboxed_executor as ensure_executor
 
 
 def main() -> int:

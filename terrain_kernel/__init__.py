@@ -61,10 +61,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from ..kernel_base import FunSearchKernel, KernelConfig, CandidateProgram, Island
+from ..kernels import (
+    FunSearchKernel, KernelConfig, CandidateProgram, Island,
+    ensure_sandboxed_executor, UnsafeSandboxError, register_kernel,
+)
 from ..core import Verdict
 from ..sandbox import SandboxedExecutor, compile_and_run
-from ..tsp_kernel import ensure_sandboxed_executor, UnsafeSandboxError
 
 logger = logging.getLogger(__name__)
 
@@ -540,14 +542,11 @@ def evaluate_on_instance(
     return fitness if math.isfinite(fitness) and fitness > 0 else None
 
 
-def ensure_executor(allow_unsandboxed: bool = False) -> SandboxedExecutor:
-    return ensure_sandboxed_executor(allow_unsandboxed=allow_unsandboxed)
-
-
 # ---------------------------------------------------------------------------
 # Terrain FunSearch kernel
 # ---------------------------------------------------------------------------
 
+@register_kernel("terrain")
 class TerrainKernel(FunSearchKernel):
     """FunSearch kernel that evolves geological height functions terrain(vec2 p).
 
@@ -563,7 +562,7 @@ class TerrainKernel(FunSearchKernel):
 
     def __init__(self, config: KernelConfig) -> None:
         super().__init__(config)
-        self.executor = ensure_executor(allow_unsandboxed=config.allow_unsandboxed)
+        self.executor = ensure_sandboxed_executor(allow_unsandboxed=config.allow_unsandboxed)
         self.problem_instances = self.load_instances()
         logger.info("Terrain kernel: %d instances, sandbox=%s",
                     len(self.problem_instances), self.executor.sandbox_type)
@@ -786,7 +785,7 @@ class TerrainKernel(FunSearchKernel):
         # Publish best-of-generation to shader studio vault (fire-and-forget)
         if top:
             try:
-                from autobench.nervous_kernel_bridge import NervousKernelBridge
+                from autobench.kernels.bridge import NervousKernelBridge
                 bridge = NervousKernelBridge()
                 instance = self.config.instances[0] if self.config.instances else "terrain"
                 bridge.publish_to_shader_vault(

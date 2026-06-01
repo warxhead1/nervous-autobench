@@ -19,12 +19,12 @@ from . import (
     TerrainKernel,
     TerrainInstance,
     evaluate_on_instance,
-    ensure_executor,
+    ensure_sandboxed_executor as ensure_executor,
     generate_instance,
     get_seed_programs,
     _TERRAIN_INSTANCE_CONFIGS,
 )
-from ..kernel_base import KernelConfig
+from ..kernels import KernelConfig
 
 
 def setup_logging(verbose: bool = False) -> None:

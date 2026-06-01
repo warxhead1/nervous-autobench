@@ -20,10 +20,10 @@ from . import (
     get_seed_programs,
     get_diagnostic_seeds,
     build_candidate_source,
-    ensure_executor,
+    ensure_sandboxed_executor as ensure_executor,
     _LATENT_INSTANCE_CONFIGS,
 )
-from ..kernel_base import KernelConfig
+from ..kernels import KernelConfig
 from ..core import Verdict
 from ..sandbox import compile_and_run
 

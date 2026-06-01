@@ -28,7 +28,7 @@ from . import (
     _SEEDS,
     build_probe_shader,
 )
-from ..kernel_base import KernelConfig, CandidateProgram
+from ..kernels import KernelConfig, CandidateProgram
 
 
 def setup_logging(verbose: bool = False) -> None:

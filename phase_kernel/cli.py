@@ -19,13 +19,13 @@ from . import (
     PhaseKernel,
     PhaseInstance,
     evaluate_on_instance,
-    ensure_executor,
+    ensure_sandboxed_executor as ensure_executor,
     generate_instance,
     get_seed_programs,
     build_candidate_source,
     _PHASE_INSTANCE_CONFIGS,
 )
-from ..kernel_base import KernelConfig
+from ..kernels import KernelConfig
 from ..core import Verdict
 from ..sandbox import compile_and_run
 

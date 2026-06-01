@@ -27,14 +27,14 @@ from . import (
     SDFKernel,
     SDFInstance,
     evaluate_on_instance,
-    ensure_executor,
+    ensure_sandboxed_executor as ensure_executor,
     generate_instance,
     build_candidate_source,
     get_seed_programs,
     KNOWN_OPTIMALS,
     _INSTANCE_FACTORIES,
 )
-from ..kernel_base import KernelConfig, CandidateProgram
+from ..kernels import KernelConfig, CandidateProgram
 
 
 def setup_logging(verbose: bool = False) -> None:

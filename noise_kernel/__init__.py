@@ -42,7 +42,10 @@ from typing import Any
 
 import numpy as np
 
-from ..kernel_base import FunSearchKernel, KernelConfig, CandidateProgram, Island
+from ..kernels import (
+    FunSearchKernel, KernelConfig, CandidateProgram, Island,
+    register_kernel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -524,6 +527,7 @@ def build_reference_shader(instance_name: str) -> str:
 # NoiseKernel
 # ---------------------------------------------------------------------------
 
+@register_kernel("noise")
 class NoiseKernel(FunSearchKernel):
     """FunSearch kernel for GPU-evaluated GLSL noise functions.
 
@@ -970,7 +974,7 @@ The Z-slice test means a function that ignores `p.z` will fail. Use all three co
 
     def _publish_started(self) -> None:
         """Emit noise.kernel.started.v1 when the run begins."""
-        from ..kernel_base import _git_commit_short
+        from ..kernels.base import _git_commit_short
         self._publish("noise.kernel.started.v1", {
             "run_id": self.run_id,
             "git_commit": _git_commit_short(),

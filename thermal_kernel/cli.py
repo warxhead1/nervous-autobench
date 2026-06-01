@@ -23,10 +23,10 @@ from . import (
     build_candidate_source,
     _THERMAL_INSTANCE_CONFIGS,
 )
-from ..kernel_base import KernelConfig
+from ..kernels import KernelConfig
 from ..core import Verdict
 from ..sandbox import compile_and_run
-from . import ensure_executor
+from . import ensure_sandboxed_executor as ensure_executor
 
 
 def setup_logging(verbose: bool = False) -> None:

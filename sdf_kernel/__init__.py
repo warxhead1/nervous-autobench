@@ -86,10 +86,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from ..kernel_base import FunSearchKernel, KernelConfig, CandidateProgram, Island
+from ..kernels import (
+    FunSearchKernel, KernelConfig, CandidateProgram, Island,
+    ensure_sandboxed_executor, UnsafeSandboxError, register_kernel,
+)
 from ..core import Verdict
 from ..sandbox import SandboxedExecutor, compile_and_run
-from ..tsp_kernel import ensure_sandboxed_executor, UnsafeSandboxError  # reuse sandbox gate
+
+# Back-compat: tests and external code patch `autobench.sdf_kernel.ensure_executor`.
+# The local copy used to be a near-duplicate of kernels.ensure_sandboxed_executor
+# with max_memory_mb=256; that distinction is now in KernelConfig.max_memory_mb.
+ensure_executor = ensure_sandboxed_executor
 
 logger = logging.getLogger(__name__)
 
@@ -918,32 +925,6 @@ def get_seed_programs(instance_name: str) -> list[tuple[str, str]]:
 # Sandbox gate
 # ---------------------------------------------------------------------------
 
-def ensure_executor(
-    *,
-    allow_unsandboxed: bool = False,
-    max_memory_mb: int = 256,
-    cpu_limit: int = 2,
-) -> SandboxedExecutor:
-    """Build and gate the executor. Raises UnsafeSandboxError if not isolated."""
-    executor = SandboxedExecutor(
-        sandbox_type="gvisor",
-        max_memory_mb=max_memory_mb,
-        cpu_limit=cpu_limit,
-    )
-    if executor.sandbox_type not in ("gvisor", "firecracker"):
-        if not allow_unsandboxed:
-            raise UnsafeSandboxError(
-                "SDF kernel refuses to run untrusted candidate code without isolation "
-                f"(got '{executor.sandbox_type}'). Install gVisor or pass "
-                "allow_unsandboxed=True for a trusted, attended run."
-            )
-        logger.warning(
-            "SANDBOX DEGRADED: running untrusted candidate code under '%s' "
-            "(no isolation) because allow_unsandboxed=True", executor.sandbox_type,
-        )
-    return executor
-
-
 def build_candidate_source(sdf_code: str) -> str:
     """Combine the fixed skeleton with the LLM-evolved sdf() implementation."""
     return CPP_SKELETON + "\n" + sdf_code + "\n"
@@ -1172,6 +1153,7 @@ def parse_llm_response(response: str) -> str:
 # Main kernel class — real FunSearchKernel subclass (instance #2)
 # ---------------------------------------------------------------------------
 
+@register_kernel("sdf")
 class SDFKernel(FunSearchKernel):
     """FunSearch-style SDF heuristic discovery kernel.
 
@@ -1450,7 +1432,7 @@ class SDFKernel(FunSearchKernel):
 
     def _publish_started(self) -> None:
         """Emit sdf.kernel.started.v1 when the run begins."""
-        from ..kernel_base import _git_commit_short
+        from ..kernels.base import _git_commit_short
         self._publish("sdf.kernel.started.v1", {
             "run_id": self.run_id,
             "git_commit": _git_commit_short(),

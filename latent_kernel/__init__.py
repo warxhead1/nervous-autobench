@@ -78,10 +78,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from ..kernel_base import FunSearchKernel, KernelConfig, CandidateProgram, Island
+from ..kernels import (
+    FunSearchKernel, KernelConfig, CandidateProgram, Island,
+    ensure_sandboxed_executor, register_kernel,
+)
 from ..core import Verdict
 from ..sandbox import SandboxedExecutor, compile_and_run
-from ..tsp_kernel import ensure_sandboxed_executor
 
 logger = logging.getLogger(__name__)
 
@@ -548,10 +550,6 @@ def evaluate_on_instance(code: str, inst: LatentInstance,
     return fitness if math.isfinite(fitness) and fitness > 0 else None
 
 
-def ensure_executor(allow_unsandboxed: bool = False) -> SandboxedExecutor:
-    return ensure_sandboxed_executor(allow_unsandboxed=allow_unsandboxed)
-
-
 # ---------------------------------------------------------------------------
 # Seed programs — 3-arg signature, correct sign convention
 # ---------------------------------------------------------------------------
@@ -608,6 +606,7 @@ def get_diagnostic_seeds() -> list[tuple[str, str]]:
 # LatentKernel
 # ---------------------------------------------------------------------------
 
+@register_kernel("latent")
 class LatentKernel(FunSearchKernel):
     """FunSearch kernel: 2D coupled phase-thermal PDE with latent heat.
 
@@ -630,7 +629,7 @@ class LatentKernel(FunSearchKernel):
 
     def __init__(self, config: KernelConfig) -> None:
         super().__init__(config)
-        self.executor = ensure_executor(allow_unsandboxed=config.allow_unsandboxed)
+        self.executor = ensure_sandboxed_executor(allow_unsandboxed=config.allow_unsandboxed)
         self.problem_instances = self.load_instances()
         for inst in self.problem_instances:
             logger.info(

@@ -86,10 +86,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from ..kernel_base import FunSearchKernel, KernelConfig, CandidateProgram, Island
+from ..kernels import (
+    FunSearchKernel, KernelConfig, CandidateProgram, Island,
+    ensure_sandboxed_executor, register_kernel,
+)
 from ..core import Verdict
 from ..sandbox import SandboxedExecutor, compile_and_run
-from ..tsp_kernel import ensure_sandboxed_executor
 
 logger = logging.getLogger(__name__)
 
@@ -574,14 +576,11 @@ def evaluate_on_instance(
     return fitness if math.isfinite(fitness) and fitness > 0 else None
 
 
-def ensure_executor(allow_unsandboxed: bool = False) -> SandboxedExecutor:
-    return ensure_sandboxed_executor(allow_unsandboxed=allow_unsandboxed)
-
-
 # ---------------------------------------------------------------------------
 # Phase FunSearch kernel
 # ---------------------------------------------------------------------------
 
+@register_kernel("phase")
 class PhaseKernel(FunSearchKernel):
     """FunSearch kernel that evolves Allen-Cahn phase field driving forces.
 
@@ -600,7 +599,7 @@ class PhaseKernel(FunSearchKernel):
 
     def __init__(self, config: KernelConfig) -> None:
         super().__init__(config)
-        self.executor = ensure_executor(allow_unsandboxed=config.allow_unsandboxed)
+        self.executor = ensure_sandboxed_executor(allow_unsandboxed=config.allow_unsandboxed)
         self.problem_instances = self.load_instances()
         logger.info("Phase kernel: %d instances, sandbox=%s",
                     len(self.problem_instances), self.executor.sandbox_type)

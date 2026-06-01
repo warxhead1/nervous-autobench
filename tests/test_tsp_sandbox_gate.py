@@ -44,13 +44,16 @@ class _DegradedExecutor:
 
 
 def test_gate_refuses_when_isolation_degraded(monkeypatch):
-    monkeypatch.setattr("autobench.tsp_kernel.SandboxedExecutor", _DegradedExecutor)
+    # ensure_sandboxed_executor was relocated to autobench.kernels.sandbox in
+    # Phase 1 of the autobench restructuring (May 2026). The patch target moved
+    # with it; the behaviour under test is unchanged.
+    monkeypatch.setattr("autobench.kernels.sandbox.SandboxedExecutor", _DegradedExecutor)
     with pytest.raises(UnsafeSandboxError):
         ensure_sandboxed_executor(allow_unsandboxed=False)
 
 
 def test_gate_allows_degraded_only_with_explicit_override(monkeypatch):
-    monkeypatch.setattr("autobench.tsp_kernel.SandboxedExecutor", _DegradedExecutor)
+    monkeypatch.setattr("autobench.kernels.sandbox.SandboxedExecutor", _DegradedExecutor)
     ex = ensure_sandboxed_executor(allow_unsandboxed=True)
     assert ex.sandbox_type == "subprocess"  # override honored, eyes open
 
