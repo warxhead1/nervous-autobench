@@ -15,7 +15,7 @@ from autobench.observability import (
     CHANNEL_CYCLE_REQUESTED,
     AutobenchObservability,
 )
-from autobench.trigger_daemon import (
+from autobench.daemons.trigger_daemon import (
     DEFAULT_BUDGET_SECONDS,
     DEFAULT_MAX_ITER,
     DEFAULT_N_ADVOCATES,
@@ -383,7 +383,7 @@ def test_handle_trigger_improver_strategy_defaults_absent_when_not_in_event(tmp_
 
 def test_run_cycle_with_population_runner_uses_improver_strategy(monkeypatch):
     """_run_cycle_with_population_runner resolves improver from config > env > default."""
-    from autobench.trigger_daemon import _run_cycle_with_population_runner, CycleConfig
+    from autobench.daemons.trigger_daemon import _run_cycle_with_population_runner, CycleConfig
     from autobench.observability import _ulid
 
     captured_improver = {}

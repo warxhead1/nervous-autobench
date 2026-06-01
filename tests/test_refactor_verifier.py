@@ -11,7 +11,7 @@ from unittest import mock
 import pytest
 
 from autobench.core import Verdict as CoreVerdict
-from autobench.refactor_verifier import (
+from autobench.audit.refactor_verifier import (
     RenameVerdict,
     RenameVerifier,
     Verdict,

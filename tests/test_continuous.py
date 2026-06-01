@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 
-from autobench.continuous import (
+from autobench.daemons.continuous import (
     ContinuousModeDaemon,
     Digest,
     Surprise,
@@ -112,7 +112,7 @@ def test_run_one_session_updates_stats(
 
     # Patch the curriculum-source picker to return our stub cases.
     cases = [BenchmarkCase(id="t1", prompt="echo 1", language="python")]
-    import autobench.continuous as cont_mod
+    import autobench.daemons.continuous as cont_mod
     monkeypatch.setattr(cont_mod, "_pick_benchmark_source",
                         lambda ws: (Path("stub"), cases))
 

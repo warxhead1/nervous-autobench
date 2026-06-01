@@ -15,7 +15,7 @@ from autobench.observability import (
     CHANNEL_CYCLE_REQUESTED,
     AutobenchObservability,
 )
-from autobench.trigger_daemon import TriggerDaemon
+from autobench.daemons.trigger_daemon import TriggerDaemon
 
 
 VALID_ULID = "01SBSTRATE00000000000000XX"

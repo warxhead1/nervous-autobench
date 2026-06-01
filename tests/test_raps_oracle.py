@@ -118,7 +118,7 @@ def test_spectral_fitness_is_phase_invariant():
 
 def test_spectral_beta_range():
     """A fractal image with beta~3.0 should have measured beta in [2.0, 4.5]."""
-    from autobench.oracle_calibration import _compute_spectral_stats
+    from autobench.audit.oracle_calibration import _compute_spectral_stats
 
     with tempfile.TemporaryDirectory(prefix="raps_test_") as tmp:
         tmp_path = pathlib.Path(tmp)

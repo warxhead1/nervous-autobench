@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
-from autobench.ahe import (
+from autobench.audit.ahe import (
     Prediction,
     PredictionVerification,
     parse_prediction_from_llm_response,

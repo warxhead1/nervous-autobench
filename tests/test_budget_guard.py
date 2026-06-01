@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from autobench.budget_guard import BudgetExceeded, BudgetGuard
+from autobench.audit.budget_guard import BudgetExceeded, BudgetGuard
 
 
 # --------------------------------------------------------------------------- #

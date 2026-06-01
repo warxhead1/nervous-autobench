@@ -9,7 +9,7 @@ from pathlib import Path
 # Ensure the package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from autobench.session_state import (
+from autobench.audit.session_state import (
     SessionState,
     finish_session,
     generate_ulid,
@@ -20,7 +20,7 @@ from autobench.session_state import (
     start_session,
 )
 from autobench.core import HarnessResult, Verdict
-from autobench.role_predicate import (
+from autobench.audit.role_predicate import (
     ActivationPredicate,
     RoleSpecActivationBuilder,
     evaluate_predicate,

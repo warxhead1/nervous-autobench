@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from autobench.ahe import (
+from autobench.audit.ahe import (
     Prediction,
     PredictionVerification,
     compact_predictions,
@@ -29,7 +29,7 @@ from autobench.ahe import (
     prediction_source_scope_key,
     PlannedCompaction,
 )
-from autobench.invalidation import ahe_scope_key
+from autobench.audit.invalidation import ahe_scope_key
 from autobench.observability import (
     AutobenchObservability,
     CHANNEL_PREDICTION,

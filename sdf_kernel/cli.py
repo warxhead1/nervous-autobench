@@ -111,7 +111,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if result_files:
             results_path = Path(result_files[-1])
             try:
-                from autobench.post_run_assess import assess_run
+                from autobench.audit.post_run_assess import assess_run
                 report_path, png_paths = assess_run(
                     results_path, kernel="sdf", top_n=args.assess_top_n,
                     nervous_bin=kernel._nervous_bin,
