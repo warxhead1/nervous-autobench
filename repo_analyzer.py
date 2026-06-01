@@ -329,7 +329,7 @@ def analyze_repo(repo_path: str | Path) -> RepoMetrics:
 
 def _detect_languages(repo_path: Path) -> set[str]:
     """Detect languages present in a repo."""
-    from .sandbox import LANGUAGE_MAP
+    from .engines.sandbox import LANGUAGE_MAP
 
     languages: set[str] = set()
     try:

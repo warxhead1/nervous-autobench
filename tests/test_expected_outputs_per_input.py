@@ -21,7 +21,7 @@ from typing import Any
 
 from autobench.core import HarnessConfig, Verdict
 from autobench.evaluator import BenchmarkCase, BenchmarkEvaluator
-from autobench.sandbox import ExecutionResult
+from autobench.engines.sandbox import ExecutionResult
 
 
 @dataclass

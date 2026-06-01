@@ -14,11 +14,10 @@ from unittest.mock import ANY, patch
 import pytest
 
 from autobench.core import HarnessResult, HarnessResult, Verdict
-from autobench.signal_bus import (
+from autobench.bus.idgen import iso_now, ulid
+from autobench.bus.signal_bus import (
     AutobenchResultPublisher,
     AutobenchResultSubscriber,
-    _ulid,
-    _iso_now,
     DEBUG_FILE,
     make_publisher,
     make_subscriber,
@@ -28,23 +27,39 @@ from autobench.signal_bus import (
 class TestUlid:
     def test_ulid_format(self):
         """ULID should be 26 characters: 10 digit timestamp + 16 hex chars."""
-        uid = _ulid()
+        uid = ulid()
         assert len(uid) == 26
         assert uid.isdigit() or uid[:10].isdigit()
 
     def test_ulid_unique(self):
         """Each ULID should be unique."""
-        ids = {_ulid() for _ in range(1000)}
+        ids = {ulid() for _ in range(1000)}
         assert len(ids) == 1000
 
 
 class TestIcoNow:
     def test_iso_now_format(self):
-        """ISO timestamp should be RFC3339."""
-        ts = _iso_now()
-        # RFC3339: YYYY-MM-DDTHH:MM:SSZ
-        assert ts.endswith("Z")
-        assert len(ts) == 20
+        """ISO timestamp should be RFC3339 (datetime-based form).
+
+        Phase 2A unified the three prior RFC3339 helpers on
+        ``datetime.now(timezone.utc).isoformat()`` — see
+        ``autobench.bus.idgen.iso_now``. The resulting string is
+        RFCEvents-compliant: it carries an explicit ``+00:00`` offset
+        (instead of the prior ``Z`` shorthand) and includes microsecond
+        precision when available.
+        """
+        ts = iso_now()
+        # RFC3339 in the datetime.isoformat() form:
+        #   YYYY-MM-DDTHH:MM:SS[.ffffff]+00:00
+        assert ts.endswith("+00:00")
+        assert ts[10] == "T"
+        # Prefix is YYYY-MM-DD — 10 chars.
+        assert len(ts) >= 25
+        # Prefix must be a valid date.
+        from datetime import datetime
+        # Tolerate optional microseconds by trimming before parse.
+        head = ts.split("+", 1)[0]
+        datetime.fromisoformat(head)
 
 
 class TestAutobenchResultPublisher:
@@ -146,8 +161,8 @@ class TestAutobenchResultPublisher:
         debug_dir = tmp_path / ".cache" / "nervous-bus"
         debug_file = debug_dir / "debug.jsonl"
 
-        with patch("autobench.signal_bus.DEBUG_FILE", debug_file):
-            with patch("autobench.signal_bus._ensure_debug_dir"):
+        with patch("autobench.bus.signal_bus.DEBUG_FILE", debug_file):
+            with patch("autobench.bus.signal_bus._ensure_debug_dir"):
                 pub = AutobenchResultPublisher()
                 with patch.object(pub, "_try_zellij_pipe", return_value=False):
                     with patch.object(pub, "_write_debug") as mock_write:
@@ -165,7 +180,7 @@ class TestAutobenchResultPublisher:
         """publish() should return True when falling back to debug file."""
         debug_file = tmp_path / "debug.jsonl"
 
-        with patch("autobench.signal_bus.DEBUG_FILE", debug_file):
+        with patch("autobench.bus.signal_bus.DEBUG_FILE", debug_file):
             pub = AutobenchResultPublisher()
             with patch.object(pub, "_try_zellij_pipe", return_value=False):
                 result = HarnessResult(
@@ -300,7 +315,7 @@ class TestPublisherRoundTrip:
         debug_file = tmp_path / "debug.jsonl"
 
         # Produce
-        with patch("autobench.signal_bus.DEBUG_FILE", debug_file):
+        with patch("autobench.bus.signal_bus.DEBUG_FILE", debug_file):
             pub = AutobenchResultPublisher(
                 harness_version="v1",
                 benchmark_name="test-bench",
@@ -335,7 +350,7 @@ class TestPublisherRoundTrip:
         def cb(event):
             received.append(event)
 
-        with patch("autobench.signal_bus.DEBUG_FILE", debug_file):
+        with patch("autobench.bus.signal_bus.DEBUG_FILE", debug_file):
             sub = AutobenchResultSubscriber(callback=cb)
             sub._process_line(lines[0])
 

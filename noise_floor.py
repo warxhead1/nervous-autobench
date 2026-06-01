@@ -23,7 +23,7 @@ from typing import Any
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from autobench.sandbox import SandboxedExecutor
+from autobench.engines.sandbox import SandboxedExecutor
 from autobench.core import Verdict
 
 

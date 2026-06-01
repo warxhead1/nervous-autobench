@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from autobench.firecracker_vm import FirecrackerVM, build_exec_request
+from autobench.engines.firecracker_vm import FirecrackerVM, build_exec_request
 
 
 class TestBuildExecRequest:

@@ -24,7 +24,7 @@ from autobench.tsp_kernel import (
     init_baseline_programs,
     KNOWN_OPTIMALS,
 )
-from autobench.sandbox import SandboxedExecutor
+from autobench.engines.sandbox import SandboxedExecutor
 
 _HAVE_GPP = shutil.which("g++") is not None
 

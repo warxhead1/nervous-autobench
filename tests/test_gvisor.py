@@ -12,7 +12,7 @@ import os
 
 import pytest
 
-from autobench.sandbox import SandboxedExecutor
+from autobench.engines.sandbox import SandboxedExecutor
 from autobench.core import Verdict
 
 
@@ -51,7 +51,7 @@ class TestFindAndCheck:
         """_find_runsc returns None when neither candidate path exists."""
         executor = SandboxedExecutor(sandbox_type="subprocess")
         # Force isfile to always return False so _find_runsc cannot resolve.
-        import autobench.sandbox as sb
+        import autobench.engines.sandbox as sb
 
         monkeypatch.setattr(sb.os.path, "isfile", lambda _p: False)
         assert executor._find_runsc() is None

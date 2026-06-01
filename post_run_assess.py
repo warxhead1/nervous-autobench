@@ -133,7 +133,7 @@ def _assess_noise_program(prog: dict, png_path: Path | None) -> dict:
 def _render_sdf(code: str, out_path: Path, instance_name: str = "") -> bool:
     # Try in-house CPU tracer first (headless, zero VRAM, takes C++ directly).
     try:
-        from autobench.sdf_tracer import render_sdf_cpp_to_png
+        from autobench.engines.sdf_tracer import render_sdf_cpp_to_png
         from autobench.artifact_store import _INSTANCE_CAMERA_DIST
         cam_dist = _INSTANCE_CAMERA_DIST.get(instance_name, 3.5)
         return render_sdf_cpp_to_png(code, out_path, viewport=(256, 256), camera_dist=cam_dist)
@@ -152,7 +152,7 @@ def _render_sdf(code: str, out_path: Path, instance_name: str = "") -> bool:
 def _render_noise(code: str, out_path: Path) -> bool:
     try:
         from autobench.noise_kernel import build_probe_shader
-        from autobench.shader_executor import ShaderExecutor
+        from autobench.engines.shader_executor import ShaderExecutor
         shader = build_probe_shader(code)
         ex = ShaderExecutor()
         result = ex.render_only(shader, out_path=str(out_path), viewport=(512, 512), i_time=0.0)

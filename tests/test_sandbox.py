@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from autobench.sandbox import (
+from autobench.engines.sandbox import (
     SandboxedExecutor,
     cleanup_cgroup,
     LANGUAGE_RUNNERS,
@@ -142,7 +142,7 @@ class TestFirecracker:
 
     def test_firecracker_pool_graceful_no_kvm(self):
         """Pool gracefully handles missing KVM."""
-        from autobench.firecracker_vm import FirecrackerPool
+        from autobench.engines.firecracker_vm import FirecrackerPool
         pool = FirecrackerPool(pool_size=2)
         # Without KVM, pool._has_kvm is False and pool is non-functional
         assert pool.has_kvm == os.path.exists("/dev/kvm")
