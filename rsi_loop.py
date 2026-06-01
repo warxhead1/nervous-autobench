@@ -15,10 +15,11 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
+from .budget_guard import BudgetExceeded
 from .core import HarnessConfig, HarnessResult, RSILoop, Verdict
 from .evaluator import BenchmarkEvaluator, BenchmarkResult
 from .iteration_summary import build_iteration_summary, normalize_worker_usage
-from .observability import AutobenchObservability
+from .observability import AutobenchObservability, _iso_now, _ulid
 
 
 # nervous-bus-sf0y: default variance floor (2σ) below which we treat a
@@ -251,6 +252,40 @@ class SelfImprovingHarness:
         pending_prediction: Any = None  # autobench.ahe.Prediction | None
         prev_result: BenchmarkResult | None = None
 
+        # Terminal-event tracking (autobench.rsi.completed.v1).
+        # ``_initial_score`` is captured at first iter completion and kept for
+        # the final payload. ``_convergence_reason`` is updated at each exit
+        # path; ``_emit_rsi_completed`` fires just before every return/raise.
+        _initial_score: float | None = None
+        _convergence_reason: str = "max_iters"
+
+        def _emit_rsi_completed(reason: str) -> None:
+            """Emit autobench.rsi.completed.v1. Non-raising; safe to call from finally."""
+            if self.obs is None:
+                return
+            try:
+                _final = result.aggregate_score if result is not None else 0.0
+                _cost: float = 0.0
+                for _h, _r, _d in history:
+                    for _u in (_r.metadata or {}).get("worker_usage") or []:
+                        _nu = normalize_worker_usage(_u)
+                        _cost += float(_nu.get("cost_usd", 0.0))
+                self.obs._publish(
+                    "autobench.rsi.completed.v1",
+                    {
+                        "run_id": self.obs.session_id,
+                        "session_id": self.obs.session_id,
+                        "final_score": _final,
+                        "initial_score": float(_initial_score) if _initial_score is not None else _final,
+                        "n_iterations_actual": len(history),
+                        "convergence_reason": reason,
+                        "total_cost_usd": _cost,
+                        "promoted": False,
+                    },
+                )
+            except Exception:  # noqa: BLE001 — observability must never break the loop
+                pass
+
         for i in range(self.max_iterations):
             prev_score = result.aggregate_score if result else 0.0
 
@@ -284,6 +319,10 @@ class SelfImprovingHarness:
                     self._live_refuted_iterations.append(i)
                 _end_live_refutation(live_refute_state)
 
+            # Capture initial_score from iteration 0's result (terminal-event).
+            if i == 0 and result is not None and _initial_score is None:
+                _initial_score = result.aggregate_score
+
             # Budget guard checkpoint (optional). Moved here (nervous-bus-k5ni)
             # to check BEFORE any new prediction is emitted for the next iter.
             # If budget is exceeded, no new prediction is emitted.
@@ -291,6 +330,8 @@ class SelfImprovingHarness:
                 self.budget_guard.record_iteration_complete()
                 ok, reason = self.budget_guard.check()
                 if not ok:
+                    _convergence_reason = "budget_halt"
+                    _emit_rsi_completed(_convergence_reason)
                     self.budget_guard.halt(reason)  # raises BudgetExceeded
 
             # nervous-bus-sf0y: best-iter-keep checkpoint + revert. After
@@ -596,6 +637,7 @@ class SelfImprovingHarness:
 
             # Convergence check
             if self.convergence_check([(h, r) for h, r, _ in history]):
+                _convergence_reason = "converged"
                 break
 
             # Early exit if no meaningful improvement. Skip when the improver
@@ -604,10 +646,12 @@ class SelfImprovingHarness:
             # delta means no attempt was made, so we must keep iterating.
             curr_score = result.aggregate_score
             if not is_noop_delta and abs(curr_score - prev_score) < self.improvement_threshold:
+                _convergence_reason = "early_exit"
                 break
 
         self.current_harness = harness
         self._iteration_history = history
+        _emit_rsi_completed(_convergence_reason)
         return harness, result, history
 
     def _compute_adaptive_threshold(

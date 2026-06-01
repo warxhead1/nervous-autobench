@@ -45,6 +45,31 @@ from .observability import (
 
 __all__ = ["TriggerDaemon", "build_cycle_config", "CycleConfig"]
 
+# --------------------------------------------------------------------------- #
+# autobench.command.v1 — control-plane channel consumed by TriggerDaemon.
+# --------------------------------------------------------------------------- #
+
+CHANNEL_COMMAND = "autobench.command.v1"
+CHANNEL_COMMAND_ACK = "autobench.command.acknowledged.v1"
+
+# Runtime-config file written atomically when set_budget / set_generations
+# commands land. Active kernel runs can poll this file periodically to pick
+# up overrides without restart. Fields:
+#   {"paused": bool, "max_requests": int|null, "max_cost_usd": float|null,
+#    "target_generations": int|null}
+_RUNTIME_CONFIG_PATH = (
+    Path.home() / ".config" / "nervous-bus" / "autobench-runtime.json"
+)
+
+# Module-level pause flag. Kernel enforcement is out of scope here; the flag
+# is set/cleared so callers can check ``is_autobench_paused()``.
+_PAUSED: bool = False
+
+
+def is_autobench_paused() -> bool:
+    """Return True when a 'pause' command has been received and not yet resumed."""
+    return _PAUSED
+
 
 # --------------------------------------------------------------------------- #
 # Defaults (mirror env-var defaults used by run_first.py)
@@ -307,6 +332,147 @@ class TriggerDaemon:
         return report
 
     # ------------------------------------------------------------------ #
+    # Command handler — autobench.command.v1
+    # ------------------------------------------------------------------ #
+
+    def handle_command(self, event: dict[str, Any]) -> None:
+        """Process one autobench.command.v1 event.
+
+        Handles: pause, resume, set_budget, set_generations.
+        Always emits autobench.command.acknowledged.v1 after handling.
+        Never raises — command handling must not crash the daemon.
+        """
+        global _PAUSED  # noqa: PLW0603 — module-level pause flag
+
+        data = _event_data(event)
+        command_id = str(
+            data.get("command_id") or event.get("id") or _ulid()
+        )
+        action = str(data.get("action") or "")
+        params = data.get("params") or {}
+        status = "acknowledged"
+        error_message: str | None = None
+
+        try:
+            if action == "pause":
+                _PAUSED = True
+                print(
+                    f"[trigger_daemon] pause requested (command_id={command_id})",
+                    file=sys.stderr,
+                )
+                self._update_runtime_config()
+            elif action == "resume":
+                _PAUSED = False
+                print(
+                    f"[trigger_daemon] resume requested (command_id={command_id})",
+                    file=sys.stderr,
+                )
+                self._update_runtime_config()
+            elif action == "set_budget":
+                max_requests = params.get("max_requests")
+                max_cost_usd = params.get("max_cost_usd")
+                print(
+                    f"[trigger_daemon] set_budget — max_requests={max_requests}, "
+                    f"max_cost_usd={max_cost_usd} (command_id={command_id})",
+                    file=sys.stderr,
+                )
+                self._update_runtime_config(
+                    max_requests=(
+                        int(max_requests) if max_requests is not None else None
+                    ),
+                    max_cost_usd=(
+                        float(max_cost_usd) if max_cost_usd is not None else None
+                    ),
+                )
+            elif action == "set_generations":
+                target_gen = params.get("target_generations")
+                print(
+                    f"[trigger_daemon] set_generations — target_generations={target_gen}"
+                    f" (command_id={command_id})",
+                    file=sys.stderr,
+                )
+                self._update_runtime_config(
+                    target_generations=(
+                        int(target_gen) if target_gen is not None else None
+                    ),
+                )
+            else:
+                # Unknown / unimplemented action — log and ack with error.
+                error_message = f"unhandled action: {action!r}"
+                status = "error"
+                print(
+                    f"[trigger_daemon] unhandled command action {action!r} "
+                    f"(command_id={command_id})",
+                    file=sys.stderr,
+                )
+        except Exception as exc:  # noqa: BLE001 — never propagate from command handler
+            status = "error"
+            error_message = f"{type(exc).__name__}: {exc}"
+            print(
+                f"[trigger_daemon] command handler error: {error_message}",
+                file=sys.stderr,
+            )
+
+        # Emit acknowledgement back to the bus.
+        try:
+            ack_data: dict[str, Any] = {
+                "command_id": command_id,
+                "action": action,
+                "status": status,
+            }
+            if error_message is not None:
+                ack_data["error_message"] = error_message
+            self.obs._publish(CHANNEL_COMMAND_ACK, ack_data)
+        except Exception as e:  # noqa: BLE001
+            print(
+                f"[trigger_daemon] command ack emit failed: {e}", file=sys.stderr
+            )
+
+    @staticmethod
+    def _update_runtime_config(
+        max_requests: int | None = None,
+        max_cost_usd: float | None = None,
+        target_generations: int | None = None,
+    ) -> None:
+        """Atomically merge updates into the autobench runtime-config JSON.
+
+        Reads the current config (if any), applies the non-None overrides,
+        and writes back atomically via rename. Any running kernel can poll
+        this file to pick up new budget/generation limits without restart.
+        """
+        path = _RUNTIME_CONFIG_PATH
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # Read-modify-write: preserve any fields we're not updating.
+            cfg: dict[str, Any] = {
+                "paused": _PAUSED,
+                "max_requests": None,
+                "max_cost_usd": None,
+                "target_generations": None,
+            }
+            if path.is_file():
+                try:
+                    cfg.update(json.loads(path.read_text()))
+                except Exception:  # noqa: BLE001 — stale/corrupt file: ignore
+                    pass
+            # Sync paused flag in case it drifted.
+            cfg["paused"] = _PAUSED
+            if max_requests is not None:
+                cfg["max_requests"] = max_requests
+            if max_cost_usd is not None:
+                cfg["max_cost_usd"] = max_cost_usd
+            if target_generations is not None:
+                cfg["target_generations"] = target_generations
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(cfg))
+            os.replace(tmp, path)  # atomic on POSIX
+        except Exception as e:  # noqa: BLE001 — config write failure is non-fatal
+            print(
+                f"[trigger_daemon] runtime-config write failed: {e}",
+                file=sys.stderr,
+            )
+
+    # ------------------------------------------------------------------ #
     # Cycle runner — pluggable so tests can inject a stub
     # ------------------------------------------------------------------ #
 
@@ -450,8 +616,8 @@ class TriggerDaemon:
         try:
             assert proc.stdout is not None
             for line in proc.stdout:
-                # Quick pre-filter — skip lines that don't carry our type.
-                if CHANNEL_CYCLE_REQUESTED not in line:
+                # Quick pre-filter — skip lines that don't carry a handled type.
+                if CHANNEL_CYCLE_REQUESTED not in line and CHANNEL_COMMAND not in line:
                     continue
                 handled = self._consume_line(line)
                 if handled and max_runs is not None and self.runs_handled >= max_runs:
@@ -515,7 +681,7 @@ class TriggerDaemon:
         return self.runs_handled
 
     def _consume_line(self, line: str) -> bool:
-        """Parse one JSONL line and dispatch handle_trigger. Returns True on dispatch."""
+        """Parse one JSONL line and dispatch by event type. Returns True on dispatch."""
         line = line.strip()
         if not line:
             return False
@@ -529,6 +695,11 @@ class TriggerDaemon:
             return False
         if not isinstance(event, dict):
             return False
+        event_type = event.get("type", "")
+        if event_type == CHANNEL_COMMAND:
+            self.handle_command(event)
+            return True
+        # Default: treat all other matching events as cycle triggers.
         self.handle_trigger(event)
         return True
 
