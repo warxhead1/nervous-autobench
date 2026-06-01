@@ -1044,10 +1044,14 @@ class TSPKernel(FunSearchKernel):
         self.llm_requests = 0  # MiniMax billing unit is requests, not dollars
         self._llm_lock = threading.Lock()  # guards llm_requests across threads
         self._plateau_count = 0   # generations since the last fitness improvement
+        self._island_plateau_counts: dict = {}  # per-island plateau counter
+        self._island_prev_best: dict = {}       # per-island previous best fitness
+        self._island_age: dict = {}             # per-island generations since last reset
         self._run_start = 0.0     # wall-clock start of run()
         self.stop_reason = ""     # why the run loop ended (horizon governance)
         self.run_id = new_ulid()  # sortable ULID, per the tsp.* schemas
         self._active_hint: str = ""  # strategic hint from deer query on plateau
+        self._last_published_best_fitness: float = 0.0  # tracks last emitted best for improvement events
 
         if config.output_dir:
             config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1424,6 +1428,21 @@ class TSPKernel(FunSearchKernel):
                 ],
             })
 
+            # Emit best_fitness_improved event if global best improved by > 1e-6
+            if best.fitness - self._last_published_best_fitness > 1e-6:
+                improvement_delta = best.fitness - self._last_published_best_fitness
+                ts_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                self._publish("tsp.best_fitness_improved.v1", {
+                    "run_id": self.run_id,
+                    "generation": self.generation,
+                    "prefix": "tsp",
+                    "best_fitness": round(best.fitness, 6),
+                    "improvement_delta": round(improvement_delta, 6),
+                    "island_id": best.island,
+                    "timestamp": ts_now,
+                })
+                self._last_published_best_fitness = best.fitness
+
         self.generation += 1
 
     def global_best_fitness(self) -> float:
@@ -1460,6 +1479,8 @@ class TSPKernel(FunSearchKernel):
         self.initialize()
         self._run_start = time.time()
         self._plateau_count = 0
+        self._last_published_best_fitness = 0.0
+        self._island_age = {}
         self.stop_reason = ""
 
         for _ in range(self.generations):

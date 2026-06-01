@@ -308,6 +308,11 @@ class FunSearchKernel(abc.ABC):
         if config.use_consolidated_prior:
             self._prior = ConsolidatedPrior(self.BUS_CHANNEL_PREFIX)
 
+        # Fitness improvement tracking — emits {prefix}.best_fitness_improved.v1
+        self._last_published_best_fitness: float = 0.0
+        # Island age tracking — generations elapsed since each island was last reset
+        self._island_age: dict[int, int] = {}
+
     # ------------------------------------------------------------------
     # Diversity helpers
     # ------------------------------------------------------------------
@@ -490,6 +495,7 @@ class FunSearchKernel(abc.ABC):
             island.population = population
             island.best_program = None
             self.evaluate_island(island)
+            self._island_age[island.id] = 0  # reset age counter for culled island
             logger.info("Island %d reset (was best=%.4f, reseeded from scratch)",
                         island.id, old_best)
         logger.info("island_reset: culled %d/%d islands", n_cull, len(self.islands))
@@ -602,11 +608,61 @@ class FunSearchKernel(abc.ABC):
             else:
                 self._island_plateau_counts[island.id] = self._island_plateau_counts.get(island.id, 0) + 1
             self._island_prev_best[island.id] = max(prev, curr)
+            # Increment age for all islands; island_reset() resets to 0 for culled ones
+            self._island_age[island.id] = self._island_age.get(island.id, 0) + 1
         eval_seconds = time.time() - t_eval0
+
+        ts_now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        # Emit per-island health snapshots
+        for island in self.islands:
+            self._publish("autobench.island.health.v1", {
+                "run_id": self.run_id,
+                "generation": self.generation,
+                "prefix": self.BUS_CHANNEL_PREFIX,
+                "island_id": island.id,
+                "best_fitness": round(island.best_program.fitness if island.best_program else 0.0, 6),
+                "plateau_count": self._island_plateau_counts.get(island.id, 0),
+                "population_size": len(island.population),
+                "age_since_last_reset": self._island_age.get(island.id, 0),
+                "timestamp": ts_now,
+            })
+
+        # Emit budget gauge every 5 generations
+        if self.generation % 5 == 0 or self.generation == 0:
+            avg_rqst_per_gen = self.llm_requests / max(1, self.generation + 1)
+            max_req = self.config.max_requests
+            if max_req is not None and avg_rqst_per_gen > 0:
+                est_remaining = int((max_req - self.llm_requests) / avg_rqst_per_gen)
+            else:
+                est_remaining = None
+            self._publish("autobench.budget.gauge.v1", {
+                "run_id": self.run_id,
+                "generation": self.generation,
+                "prefix": self.BUS_CHANNEL_PREFIX,
+                "requests_used": self.llm_requests,
+                "max_requests": max_req,
+                "estimated_remaining_generations": max(0, est_remaining) if est_remaining is not None else None,
+                "timestamp": ts_now,
+            })
 
         all_best = [isl.best_program for isl in self.islands if isl.best_program]
         if all_best:
             best = max(all_best, key=lambda p: p.fitness)
+
+            # Emit best_fitness_improved event if global best improved by > 1e-6
+            if best.fitness - self._last_published_best_fitness > 1e-6:
+                improvement_delta = best.fitness - self._last_published_best_fitness
+                self._publish(f"{self.BUS_CHANNEL_PREFIX}.best_fitness_improved.v1", {
+                    "run_id": self.run_id,
+                    "generation": self.generation,
+                    "prefix": self.BUS_CHANNEL_PREFIX,
+                    "best_fitness": round(best.fitness, 6),
+                    "improvement_delta": round(improvement_delta, 6),
+                    "island_id": best.island,
+                    "timestamp": ts_now,
+                })
+                self._last_published_best_fitness = best.fitness
 
             all_fitness = [p.fitness for isl in self.islands for p in isl.population if p.fitness > 0]
             if len(all_fitness) > 1:
@@ -667,6 +723,8 @@ class FunSearchKernel(abc.ABC):
         self._plateau_count = 0
         self._island_plateau_counts = {}
         self._island_prev_best = {}
+        self._island_age = {}
+        self._last_published_best_fitness = 0.0
         self.stop_reason = ""
 
         for _ in range(self.generations):
