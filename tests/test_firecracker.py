@@ -1,4 +1,4 @@
-"""Unit + integration tests for autobench.firecracker_vm.
+"""Unit + integration tests for autobench.engines.firecracker_vm.
 
 Unit tests use mocked sockets / mocked FirecrackerAPI — they run without a
 firecracker binary, without /dev/kvm, and without network. The single
@@ -18,7 +18,7 @@ from unittest import mock
 
 import pytest
 
-from autobench.firecracker_vm import (
+from autobench.engines.firecracker_vm import (
     DEFAULT_GUEST_CID,
     DEFAULT_KERNEL_URL,
     DEFAULT_ROOTFS_URL,
@@ -206,11 +206,11 @@ class TestFirecrackerVMConfigure:
 
         mock_api = mock.MagicMock(spec=FirecrackerAPI)
 
-        with mock.patch("autobench.firecracker_vm.subprocess.Popen") as popen, \
-             mock.patch("autobench.firecracker_vm.os.path.exists", return_value=True), \
-             mock.patch("autobench.firecracker_vm.os.makedirs"), \
-             mock.patch("autobench.firecracker_vm.os.unlink"), \
-             mock.patch("autobench.firecracker_vm.FirecrackerAPI", return_value=mock_api):
+        with mock.patch("autobench.engines.firecracker_vm.subprocess.Popen") as popen, \
+             mock.patch("autobench.engines.firecracker_vm.os.path.exists", return_value=True), \
+             mock.patch("autobench.engines.firecracker_vm.os.makedirs"), \
+             mock.patch("autobench.engines.firecracker_vm.os.unlink"), \
+             mock.patch("autobench.engines.firecracker_vm.FirecrackerAPI", return_value=mock_api):
             popen.return_value = mock.MagicMock(poll=lambda: None)
             vm.configure()
 
@@ -313,15 +313,15 @@ class TestFirecrackerVMConfigure:
 
 class TestFirecrackerPool:
     def test_has_kvm_true_when_dev_kvm_readable(self):
-        with mock.patch("autobench.firecracker_vm.os.path.exists", return_value=True), \
-             mock.patch("autobench.firecracker_vm.os.access", return_value=True), \
+        with mock.patch("autobench.engines.firecracker_vm.os.path.exists", return_value=True), \
+             mock.patch("autobench.engines.firecracker_vm.os.access", return_value=True), \
              mock.patch.object(FirecrackerPool, "_create_vm", side_effect=RuntimeError("no artifacts")):
             pool = FirecrackerPool(pool_size=2)
             assert pool.has_kvm is True
             assert len(pool._available) == 0  # graceful: no artifacts, no VMs, no crash
 
     def test_pool_fallback_when_kvm_missing(self):
-        with mock.patch("autobench.firecracker_vm.os.path.exists", return_value=False):
+        with mock.patch("autobench.engines.firecracker_vm.os.path.exists", return_value=False):
             pool = FirecrackerPool(pool_size=2)
             assert pool.has_kvm is False
             assert pool._available == []
@@ -329,15 +329,15 @@ class TestFirecrackerPool:
                 pool.acquire()
 
     def test_pool_fallback_when_kvm_not_accessible(self):
-        with mock.patch("autobench.firecracker_vm.os.path.exists", return_value=True), \
-             mock.patch("autobench.firecracker_vm.os.access", return_value=False):
+        with mock.patch("autobench.engines.firecracker_vm.os.path.exists", return_value=True), \
+             mock.patch("autobench.engines.firecracker_vm.os.access", return_value=False):
             pool = FirecrackerPool(pool_size=1)
             assert pool.has_kvm is False
             assert pool._available == []
 
     def test_release_returns_healthy_vm_to_pool(self):
-        with mock.patch("autobench.firecracker_vm.os.path.exists", return_value=True), \
-             mock.patch("autobench.firecracker_vm.os.access", return_value=True), \
+        with mock.patch("autobench.engines.firecracker_vm.os.path.exists", return_value=True), \
+             mock.patch("autobench.engines.firecracker_vm.os.access", return_value=True), \
              mock.patch.object(FirecrackerPool, "_create_vm", side_effect=RuntimeError("no artifacts")):
             pool = FirecrackerPool(pool_size=1)
         vm = mock.MagicMock(spec=FirecrackerVM)
@@ -348,8 +348,8 @@ class TestFirecrackerPool:
         assert vm in pool._available
 
     def test_release_discards_sick_vm(self):
-        with mock.patch("autobench.firecracker_vm.os.path.exists", return_value=True), \
-             mock.patch("autobench.firecracker_vm.os.access", return_value=True), \
+        with mock.patch("autobench.engines.firecracker_vm.os.path.exists", return_value=True), \
+             mock.patch("autobench.engines.firecracker_vm.os.access", return_value=True), \
              mock.patch.object(FirecrackerPool, "_create_vm", side_effect=RuntimeError("no artifacts")):
             pool = FirecrackerPool(pool_size=1)
         vm = mock.MagicMock(spec=FirecrackerVM)

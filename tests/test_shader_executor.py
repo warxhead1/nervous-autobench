@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from autobench.core import Verdict
-from autobench.shader_executor import (
+from autobench.engines.shader_executor import (
     SSIM_OK_THRESHOLD,
     SSIM_VF_THRESHOLD,
     ShaderExecutor,

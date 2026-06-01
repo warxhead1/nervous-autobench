@@ -172,7 +172,7 @@ def cmd_sandbox(args):
             print(result.stderr, file=sys.stderr)
         return result.returncode
     except FileNotFoundError:
-        from .sandbox import SandboxExecutor
+        from .engines.sandbox import SandboxExecutor
         executor = SandboxExecutor(timeout=30)
         result = executor.execute(code, language)
         print(json.dumps(result, indent=2))

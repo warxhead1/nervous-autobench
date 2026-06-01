@@ -166,7 +166,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {{
 }}
 """
     try:
-        from autobench.shader_executor import ShaderExecutor
+        from autobench.engines.shader_executor import ShaderExecutor
         ex = ShaderExecutor()
         result = ex.render_only(probe, out_path=str(out_path), viewport=viewport, i_time=i_time)
         if result.frame_path != "" and Path(result.frame_path).exists():
@@ -191,7 +191,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {{
             "extern \"C\" float sdf(float x, float y, float z) {\n    (void)x; (void)y; (void)z;",
         )
 
-    from autobench.sdf_tracer import render_sdf_cpp_to_png
+    from autobench.engines.sdf_tracer import render_sdf_cpp_to_png
     cam_dist = _INSTANCE_CAMERA_DIST.get(instance_name, 3.5)
     return render_sdf_cpp_to_png(
         cpp_code,

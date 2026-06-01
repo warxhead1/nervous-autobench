@@ -40,7 +40,7 @@ ITERATIVE_MAX_ATTEMPTS = 3
 # p_cost ∈ [0, 1] — see _normalize_p_cost (nervous-bus-569q).
 DEFAULT_MAX_COST_PER_CASE_USD = 0.10
 from .observability import GENERATED_CODE_TRUNCATE_LEN, AutobenchObservability
-from .sandbox import ExecutionResult, SandboxedExecutor, compile_and_run, verify_output
+from .engines.sandbox import ExecutionResult, SandboxedExecutor, compile_and_run, verify_output
 
 
 # Verdict aggregation precedence (worst-wins) for multi-input cases
@@ -589,7 +589,7 @@ class BenchmarkEvaluator:
         """Lazily create a publisher for the given harness version."""
         if self._publisher is None:
             try:
-                from .signal_bus import AutobenchResultPublisher
+                from .bus.signal_bus import AutobenchResultPublisher
             except Exception:
                 return None
             self._publisher = AutobenchResultPublisher(
@@ -1189,7 +1189,7 @@ class BenchmarkEvaluator:
             verdict   ← OK / VF / WA / CE / RE / TLE (from ShaderExecutor)
             latency_ms← render_time_ms
         """
-        from .shader_executor import ShaderExecutor  # local import: optional dep
+        from .engines.shader_executor import ShaderExecutor  # local import: optional dep
 
         viewport_list = case.constraints.get("viewport", [512, 512])
         viewport = (int(viewport_list[0]), int(viewport_list[1]))

@@ -414,7 +414,7 @@ def generate_scaffolding(
         }
 
     # Detect language
-    from .sandbox import detect_language
+    from .engines.sandbox import detect_language
     lang = detect_language(repo_path) or "python"
 
     # Find function signatures (Python focus)

@@ -106,7 +106,7 @@ def test_evaluator_p_cost_differs_for_different_worker_costs(
 ) -> None:
     """Two workers with different _last_usage produce different p_cost."""
     # Bypass real sandbox: stub out execute() to return a deterministic OK.
-    from autobench.sandbox import ExecutionResult, SandboxedExecutor
+    from autobench.engines.sandbox import ExecutionResult, SandboxedExecutor
 
     def _fake_execute(self, code: str, language: str, **kwargs):  # noqa: ANN001
         return ExecutionResult(stdout="1\n", stderr="", exit_code=0, latency_ms=10.0)
@@ -146,7 +146,7 @@ def test_evaluator_aggregate_score_matches_sica_formula(
     test exercises the formula against whatever DEFAULT_WEIGHTS happens
     to hold today rather than pinning a magic number.
     """
-    from autobench.sandbox import ExecutionResult, SandboxedExecutor
+    from autobench.engines.sandbox import ExecutionResult, SandboxedExecutor
 
     # Deterministic OK with 0ms latency → p_time = 1.0
     def _fake_execute(self, code, language, **kwargs):  # noqa: ANN001
