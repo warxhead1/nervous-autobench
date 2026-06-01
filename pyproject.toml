@@ -3,10 +3,30 @@ name = "autobench"
 version = "0.1.0"
 description = "Recursive self-improvement coding agent harness system"
 requires-python = ">=3.11"
-dependencies = ["psutil"]
+dependencies = [
+    "psutil",       # process / memory telemetry across daemons + GPU publishers
+    "httpx",        # LLM clients (llm.models, llm.worker, llm.minimax, llm.anthropic, bus.integration)
+    "requests",     # playground_push, publish_evolved_kernels (vault HTTP)
+    "numpy",        # evaluation.diversity, audit.oracle_calibration, engines.shader_executor
+]
+
+[project.optional-dependencies]
+# Anthropic SDK is only required if you actually call the Anthropic wrapper
+# (`autobench.llm.anthropic`). Most users run via the local ensemble.
+llm = ["anthropic"]
+# GPU shader execution: moderngl is the GL context, scikit-image is SSIM,
+# torch is the LPIPS perceptual metric used by shader_executor.
+gpu = ["torch", "moderngl", "scikit-image"]
+# rsi/simulation.py writes .png plots of the RSI run timeline.
+viz = ["matplotlib"]
+# Test runner + nothing else — keep dev lean.
+dev = ["pytest"]
 
 [project.scripts]
 autobench = "autobench.cli:main"
+autobench-push-shader = "autobench.playground_push:main"
+autobench-publish-kernels = "autobench.publish_evolved_kernels:main"
+autobench-rsi-simulate = "autobench.rsi.simulation:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]

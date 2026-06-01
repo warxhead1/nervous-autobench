@@ -1,10 +1,13 @@
-"""Tests for autobench.evidence_graph — Bitloops-style evidence graph schema.
+"""Tests for the Bitloops-style evidence graph schema (test-only support).
 
 Verifies:
     * Symbol lineage insert + recursive query
     * Schema version recording
     * Event invalidation on schema change
     * DevQL-style query interfaces
+
+``evidence_graph`` was moved to ``tests/_support/`` in Phase 3 — it has no
+production callers, so it lives with the tests that exercise it.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from autobench.evidence_graph import EvidenceGraphDB
+from tests._support.evidence_graph import EvidenceGraphDB
 
 
 @pytest.fixture

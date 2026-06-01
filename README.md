@@ -16,6 +16,25 @@ Lives as a git submodule of [nervous-bus](https://github.com/warxhead1/nervous-b
 
 ---
 
+## Project structure
+
+The `autobench` package is organised into 9 subpackages, each handling a distinct concern. The 8 kernel subpackages (`tsp_kernel/`, `sdf_kernel/`, `latent_kernel/`, `phase_kernel/`, `sph_kernel/`, `terrain_kernel/`, `thermal_kernel/`, `noise_kernel/`) stay at the package root because they are registered into the kernel registry and ship their own CLI entry points (`python -m <name>_kernel ...`).
+
+| Subpackage | Responsibility |
+|---|---|
+| `kernels/` | FunSearch evolution loop, `KernelConfig`, sandbox bridge — the 8 kernel subpackages re-export from here |
+| `engines/` | `SandboxedExecutor`, Firecracker VM pool, guest agent, shader executor, SDF tracer |
+| `bus/` | CloudEvents-lite envelope (`build_event`), idgen (`ulid`/`iso_now`), signal + GPU publishers, nervous-bus integration |
+| `llm/` | LLM wrappers (Anthropic, MiniMax), ensemble + worker, model registry, judge, shared `base.py` helpers |
+| `rsi/` | Recursive self-improvement: loop, simulation, adversarial, population, replay |
+| `evaluation/` | `BenchmarkEvaluator` (still at the package root as the public entry point), registry, assembly, curriculum, distillation, diversity, codeforces, noise_floor |
+| `daemons/` | Long-running supervisor (`continuous.py`) and event-driven trigger daemon |
+| `audit/` | Claim verification, refactor verifier, budget guard, oracle calibration, post-run assessment, AHE, session state, role predicate, invalidation, repo analyzer |
+
+Back-compat shims live at the old root import paths (e.g. `from autobench.sandbox import ...` continues to work) but the canonical import is the subpackage path: `from autobench.engines.sandbox import ...`.
+
+---
+
 ## Kernel domains
 
 | Domain | Oracle | Notes |
@@ -68,10 +87,11 @@ See `ARCHITECTURE.md` for the full harness design. Key files:
 
 | File | Role |
 |---|---|
-| `kernel_base.py` | Island-model loop, plateau detection, bus publishing, consolidated prior |
+| `kernels/base.py` | Island-model loop, plateau detection, bus publishing, consolidated prior |
 | `evaluator.py` | SICA scoring (score/cost/time), AHE prediction tracking |
-| `sandbox.py` | Firecracker VM + gVisor sandbox for untrusted code execution |
-| `rsi_loop.py` | RSI supervisor loop — proposes harness config improvements |
+| `engines/sandbox.py` | Firecracker VM + gVisor sandbox for untrusted code execution |
+| `engines/firecracker_vm.py` | Firecracker VM pool (vsock transport, port 8888) |
+| `rsi/loop.py` | RSI supervisor loop — proposes harness config improvements |
 | `composition_oracle/` | Joint terrain+phase oracle for TEngine readiness gating |
 
 ---
