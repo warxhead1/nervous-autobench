@@ -712,6 +712,9 @@ class FunSearchKernel(abc.ABC):
         self.islands = self.initialize_islands()
         for island in self.islands:
             self.evaluate_island(island)
+        # Pre-seed island age to 0 so gen-0 health events report age=0 not 1
+        for island in self.islands:
+            self._island_age[island.id] = 0
         logger.info("Initialized %d islands × %d programs",
                     self.config.n_islands, self.config.population_per_island)
         self._publish_started()
