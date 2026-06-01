@@ -360,12 +360,14 @@ class TriggerDaemon:
                     f"[trigger_daemon] pause requested (command_id={command_id})",
                     file=sys.stderr,
                 )
+                self._update_runtime_config()
             elif action == "resume":
                 _PAUSED = False
                 print(
                     f"[trigger_daemon] resume requested (command_id={command_id})",
                     file=sys.stderr,
                 )
+                self._update_runtime_config()
             elif action == "set_budget":
                 max_requests = params.get("max_requests")
                 max_cost_usd = params.get("max_cost_usd")
