@@ -8,3 +8,6 @@ benchmarks/
 data/
 *.log
 *.tmp
+_plans/
+.env
+*.egg-info/
