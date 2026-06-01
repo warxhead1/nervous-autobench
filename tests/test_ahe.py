@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
 from autobench.ahe import (
     Prediction,
@@ -33,8 +34,6 @@ from autobench.observability import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO_ROOT / "schemas"
 
 SCHEMA_FOR_CHANNEL = {
     CHANNEL_PREDICTION: SCHEMA_DIR / "autobench.improver.prediction.v1.json",

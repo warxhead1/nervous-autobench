@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
 from autobench.continuous import (
     ContinuousModeDaemon,
@@ -33,8 +34,6 @@ from autobench.population import (
 from autobench.rsi_loop import ImprovementDelta
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO_ROOT / "schemas"
 
 
 # --------------------------------------------------------------------------- #

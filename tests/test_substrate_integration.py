@@ -160,7 +160,7 @@ def test_end_to_end_report_validates_against_schema(tmp_path):
             reports.append(ev)
     assert reports
 
-    repo_root = Path(__file__).resolve().parents[2]
-    schema = json.loads((repo_root / "schemas" / "autobench.cycle.report.v1.json").read_text())
+    from tests._paths import SCHEMA_DIR
+    schema = json.loads((SCHEMA_DIR / "autobench.cycle.report.v1.json").read_text())
     data_schema = schema["properties"]["data"]
     jsonschema.Draft202012Validator(data_schema).validate(reports[0]["data"])

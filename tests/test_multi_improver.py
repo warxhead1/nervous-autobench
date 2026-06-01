@@ -570,11 +570,8 @@ def test_emitted_event_matches_schema(tmp_path: Path, monkeypatch):
         _make_harness(), _make_bench_result(), obs=obs, iteration=0,
     )
 
-    schema_path = (
-        Path(__file__).resolve().parents[2]
-        / "schemas"
-        / "autobench.improver.ensemble.v1.json"
-    )
+    from tests._paths import SCHEMA_DIR
+    schema_path = SCHEMA_DIR / "autobench.improver.ensemble.v1.json"
     schema = json.loads(schema_path.read_text())
     validator = jsonschema.Draft202012Validator(schema)
 

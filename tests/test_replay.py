@@ -422,7 +422,7 @@ def test_cli_replay_help_exits_zero():
         [sys.executable, "-m", "autobench.cli", "replay", "--help"],
         capture_output=True,
         text=True,
-        cwd=Path(__file__).resolve().parents[2],
+        cwd=Path(__file__).resolve().parents[1],
     )
     assert proc.returncode == 0, proc.stderr
     out = proc.stdout

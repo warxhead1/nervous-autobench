@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 
 import pytest
+from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
 from autobench.observability import (
     AutobenchObservability,
@@ -27,8 +28,6 @@ from autobench.observability import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO_ROOT / "schemas"
 
 SCHEMA_FOR_CHANNEL = {
     CHANNEL_PHASE: SCHEMA_DIR / "autobench.phase.v1.json",

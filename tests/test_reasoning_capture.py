@@ -21,6 +21,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
 from autobench.core import (
     ContextManager,
@@ -39,8 +40,6 @@ from autobench.observability import (
 from autobench.rsi_loop import ImprovementDelta, SelfImprovingHarness
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO_ROOT / "schemas"
 
 SCHEMA_REASONING = SCHEMA_DIR / "autobench.improver.reasoning.v1.json"
 SCHEMA_DIVERGENCE = SCHEMA_DIR / "autobench.improver.divergence.v1.json"

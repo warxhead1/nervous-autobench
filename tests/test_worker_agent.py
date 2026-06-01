@@ -465,11 +465,8 @@ def test_worker_event_validates_against_schema(monkeypatch, tmp_path):
     worker_events = [e for e in events if e["type"] == CHANNEL_WORKER]
     assert len(worker_events) == 1
 
-    schema_path = (
-        Path(__file__).resolve().parents[2]
-        / "schemas"
-        / "autobench.worker.v1.json"
-    )
+    from tests._paths import SCHEMA_DIR
+    schema_path = SCHEMA_DIR / "autobench.worker.v1.json"
     schema = json.loads(schema_path.read_text())
     validator = jsonschema.Draft202012Validator(schema)
     validator.validate(worker_events[0])

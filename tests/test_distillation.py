@@ -10,8 +10,8 @@ import pytest
 from autobench.distillation import CycleDistiller
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-REPORT_SCHEMA_PATH = REPO_ROOT / "schemas" / "autobench.cycle.report.v1.json"
+from tests._paths import SCHEMA_DIR
+REPORT_SCHEMA_PATH = SCHEMA_DIR / "autobench.cycle.report.v1.json"
 
 
 def _envelope(channel: str, data: dict) -> dict:

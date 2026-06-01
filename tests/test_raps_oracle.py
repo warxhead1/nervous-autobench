@@ -23,7 +23,8 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-_REF_DIR = pathlib.Path(__file__).parents[2] / "benchmarks" / "curriculum"
+from tests._paths import BENCHMARKS_DIR as _BENCHMARKS_DIR
+_REF_DIR = _BENCHMARKS_DIR / "curriculum"
 
 def _latest_reference_png(instance_name: str) -> pathlib.Path | None:
     """Return the most recent *_reference.png for instance_name, or None."""

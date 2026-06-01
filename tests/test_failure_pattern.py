@@ -26,8 +26,8 @@ from autobench.observability import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = REPO_ROOT / "schemas" / "autobench.failure_pattern.v1.json"
+from tests._paths import SCHEMA_DIR
+SCHEMA_PATH = SCHEMA_DIR / "autobench.failure_pattern.v1.json"
 
 
 # --------------------------------------------------------------------------- #

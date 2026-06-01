@@ -363,8 +363,8 @@ def test_composite_record_request_increments_both():
 
 
 def _schema_path() -> Path:
-    # autobench/tests/test_rate_budget_guard.py → repo root → schemas/
-    return Path(__file__).resolve().parents[2] / "schemas" / "autobench.budget.rate.v1.json"
+    from tests._paths import SCHEMA_DIR
+    return SCHEMA_DIR / "autobench.budget.rate.v1.json"
 
 
 def test_schema_file_exists():

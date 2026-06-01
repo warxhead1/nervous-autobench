@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
 from autobench.adversarial import (
     _STATIC_FALLBACK,
@@ -35,8 +36,6 @@ from autobench.observability import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO_ROOT / "schemas"
 
 
 # ---------------------------------------------------------------------------

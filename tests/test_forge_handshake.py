@@ -18,6 +18,7 @@ import logging
 from pathlib import Path
 
 import pytest
+from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
 from autobench.continuous import (
     BEAD_ID_ENV,
@@ -28,8 +29,6 @@ from autobench.observability import AutobenchObservability
 from autobench.population import AdvocateResult, PopulationResult
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_DIR = REPO_ROOT / "schemas"
 BENCH_SCHEMA = SCHEMA_DIR / "bus.bead.bench_completed.v1.json"
 
 
