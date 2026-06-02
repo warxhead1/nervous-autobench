@@ -32,9 +32,31 @@ autobench-rsi-simulate = "autobench.rsi.simulation:main"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["autobench*", "kernels", "engines", "bus", "llm", "rsi", "evaluation", "daemons", "audit", "*_kernel", "composition_oracle"]
-exclude = ["data*", "research*", "benchmarks*", "tests*", ".github*"]
+[tool.setuptools]
+# Flat layout: the repo root IS the `autobench` package. package-dir maps the
+# import name `autobench` onto `.`, so `autobench.core`, `autobench.rsi`, etc.
+# resolve whether the repo is cloned standalone or vendored as a submodule.
+package-dir = {"autobench" = "."}
+packages = [
+    "autobench",
+    "autobench.audit",
+    "autobench.bus",
+    "autobench.composition_oracle",
+    "autobench.daemons",
+    "autobench.engines",
+    "autobench.evaluation",
+    "autobench.kernels",
+    "autobench.latent_kernel",
+    "autobench.llm",
+    "autobench.noise_kernel",
+    "autobench.phase_kernel",
+    "autobench.rsi",
+    "autobench.sdf_kernel",
+    "autobench.sph_kernel",
+    "autobench.terrain_kernel",
+    "autobench.thermal_kernel",
+    "autobench.tsp_kernel",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
