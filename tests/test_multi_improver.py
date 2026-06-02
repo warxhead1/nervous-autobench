@@ -34,13 +34,13 @@ from autobench.core import (
     Verdict,
 )
 from autobench.evaluator import BenchmarkResult
-from autobench.multi_improver import (
+from autobench.llm.ensemble import (
     DEFAULT_N_INSTANCES,
     MultiImproverEnsemble,
     aggregate_deltas,
 )
 from autobench.observability import AutobenchObservability, CHANNEL_IMPROVER_ENSEMBLE
-from autobench.rsi_loop import ImprovementDelta
+from autobench.rsi.loop import ImprovementDelta
 
 
 # ---------------------------------------------------------------------------
@@ -450,8 +450,8 @@ def test_parallel_ensemble_emits_arm_scores(tmp_path: Path, monkeypatch):
 
 def test_self_improving_harness_resolves_minimax_ensemble(monkeypatch):
     """``default_improver='minimax_ensemble'`` returns a callable that fans out."""
-    from autobench import multi_improver as mim_mod
-    from autobench.rsi_loop import SelfImprovingHarness
+    from autobench.llm import ensemble as mim_mod
+    from autobench.rsi.loop import SelfImprovingHarness
 
     a_h, a_d = _delta_a()
     b_h, b_d = _delta_b()
@@ -481,8 +481,8 @@ def test_self_improving_harness_legacy_minimax_path_unchanged(monkeypatch):
     Regression guard for the bead's "zero behavioral regression on the
     single-improver path" acceptance criterion.
     """
-    from autobench import minimax_improver as mm_mod
-    from autobench.rsi_loop import SelfImprovingHarness
+    from autobench.llm import minimax as mm_mod
+    from autobench.rsi.loop import SelfImprovingHarness
 
     a_h, a_d = _delta_a()
     captured: list[_StubWrapper] = []

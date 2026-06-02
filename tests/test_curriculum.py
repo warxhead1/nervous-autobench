@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
-from autobench.curriculum import (
+from autobench.evaluation.curriculum import (
     CurriculumAgent,
     CurriculumGoals,
     CurriculumScheduler,

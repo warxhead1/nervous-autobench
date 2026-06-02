@@ -25,7 +25,7 @@ from . import (
 )
 from ..kernels import KernelConfig
 from ..core import Verdict
-from ..sandbox import compile_and_run
+from ..engines.sandbox import compile_and_run
 from . import ensure_sandboxed_executor as ensure_executor
 
 

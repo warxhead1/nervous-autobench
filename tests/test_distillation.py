@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from autobench.distillation import CycleDistiller
+from autobench.evaluation.distillation import CycleDistiller
 
 
 from tests._paths import SCHEMA_DIR

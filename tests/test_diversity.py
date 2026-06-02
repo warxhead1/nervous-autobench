@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from autobench.diversity import (
+from autobench.evaluation.diversity import (
     DiversityTracker,
     FINGERPRINT_DIM,
     StructuralFingerprint,
@@ -27,7 +27,7 @@ from autobench.diversity import (
     sacs_similarity,
 )
 from autobench.observability import AutobenchObservability, CHANNEL_DIVERSITY
-from autobench.rsi_loop import ImprovementDelta
+from autobench.rsi.loop import ImprovementDelta
 
 
 from tests._paths import SCHEMA_DIR

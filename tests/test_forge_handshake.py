@@ -26,7 +26,7 @@ from autobench.daemons.continuous import (
 )
 from autobench.core import ContextManager, HarnessConfig, RolloutProtocol
 from autobench.observability import AutobenchObservability
-from autobench.population import AdvocateResult, PopulationResult
+from autobench.rsi.population import AdvocateResult, PopulationResult
 
 
 BENCH_SCHEMA = SCHEMA_DIR / "bus.bead.bench_completed.v1.json"

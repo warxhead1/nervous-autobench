@@ -66,7 +66,7 @@ def cmd_improve(args):
 
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "autobench.rsi_loop", "run",
+            [sys.executable, "-m", "autobench.rsi.loop", "run",
              "--benchmark", str(benchmark_path),
              "--iterations", str(iterations)],
             capture_output=True,
@@ -78,7 +78,7 @@ def cmd_improve(args):
             print(result.stderr, file=sys.stderr)
         return result.returncode
     except FileNotFoundError:
-        print("Error: autobench.rsi_loop not found.", file=sys.stderr)
+        print("Error: autobench.rsi.loop not found.", file=sys.stderr)
         return 1
 
 
@@ -159,7 +159,7 @@ def cmd_sandbox(args):
 
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "autobench.sandbox", "run",
+            [sys.executable, "-m", "autobench.engines.sandbox", "run",
              "--language", language,
              "--code", code],
             capture_output=True,

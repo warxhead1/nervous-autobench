@@ -566,7 +566,7 @@ class NoiseKernel(FunSearchKernel):
         if self._executor is not None:
             return self._executor
         try:
-            from ..shader_executor import ShaderExecutor  # type: ignore
+            from ..engines.shader_executor import ShaderExecutor  # type: ignore
             self._executor = ShaderExecutor(viewport=(256, 256))
             return self._executor
         except ImportError as e:
@@ -668,7 +668,7 @@ class NoiseKernel(FunSearchKernel):
         ssim_score = 0.0
 
         with tempfile.TemporaryDirectory(prefix="noise_eval_") as _tmp:
-            from ..shader_executor import Verdict  # type: ignore
+            from ..engines.shader_executor import Verdict  # type: ignore
 
             for i_time in _Z_SLICES:
                 candidate_png = Path(_tmp) / f"candidate_t{int(i_time*10):02d}.png"

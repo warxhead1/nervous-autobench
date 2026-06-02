@@ -469,7 +469,7 @@ Return ONLY the JSON. No surrounding prose.
         url = f"{self.base_url}{self.CHAT_ENDPOINT}"
         # httpx.Client lookup goes via the back-compat shim so test
         # monkeypatches on ``autobench.adversarial.httpx.Client`` take effect.
-        import autobench.adversarial as _adv_shm
+        import autobench.rsi.adversarial as _adv_shm
         with _adv_shm.httpx.Client(timeout=self.timeout_seconds) as client:
             resp = client.post(url, json=payload, headers=headers)
             resp.raise_for_status()

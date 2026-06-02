@@ -114,7 +114,7 @@ def cmd_baselines(args: argparse.Namespace) -> int:
 
     from . import build_candidate_source
     from ..core import Verdict
-    from ..sandbox import compile_and_run
+    from ..engines.sandbox import compile_and_run
 
     seeds = get_seed_programs(instance_name)
     max_score = 0.0

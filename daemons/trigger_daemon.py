@@ -234,7 +234,7 @@ class TriggerDaemon:
         with ``summary.promoted=False`` and a failure note in
         ``patterns.notes`` rather than running the cycle.
         """
-        from autobench.distillation import CycleDistiller
+        from autobench.evaluation.distillation import CycleDistiller
 
         ok, err, data = _validate_trigger(event)
         if not ok:
@@ -711,10 +711,10 @@ def _run_cycle_with_population_runner(
     On error returns an empty event list and zero-iteration overrides so
     the distiller produces a benign report.
     """
-    from autobench.benchmark_registry import BenchmarkRegistry
+    from autobench.evaluation.registry import BenchmarkRegistry
     from autobench.core import ContextManager, HarnessConfig, RolloutProtocol
     from autobench.evaluator import BenchmarkEvaluator
-    from autobench.population import PopulationRunner
+    from autobench.rsi.population import PopulationRunner
 
     started_at = _iso_now()
     try:

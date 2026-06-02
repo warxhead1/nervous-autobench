@@ -19,22 +19,22 @@ from typing import Any
 import pytest
 
 from autobench.core import HarnessConfig, HarnessResult, Verdict
-from autobench.diversity import (
+from autobench.evaluation.diversity import (
     lineage_signature,
     pairwise_lineage_distance,
 )
 from autobench.evaluator import BenchmarkResult
-from autobench.minimax_improver import _format_siblings_block
+from autobench.llm.minimax import _format_siblings_block
 from autobench.observability import (
     CHANNEL_POPULATION_SUMMARY,
     AutobenchObservability,
 )
-from autobench.population import (
+from autobench.rsi.population import (
     PopulationResult,
     PopulationRunner,
     _read_diversity_weight_env,
 )
-from autobench.rsi_loop import ImprovementDelta
+from autobench.rsi.loop import ImprovementDelta
 
 
 from tests._paths import SCHEMA_DIR
@@ -275,7 +275,7 @@ def _build_runner_for_three_advocates(
     orig_run_one = runner._run_one_advocate
 
     def _patched_run_one(index: int, cases: list[Any], **_kw: Any):
-        from autobench.rsi_loop import SelfImprovingHarness
+        from autobench.rsi.loop import SelfImprovingHarness
         from autobench.audit.budget_guard import BudgetGuard  # noqa: F401 — kept for parity
 
         adv_id = runner._advocate_id_for(index)
@@ -301,7 +301,7 @@ def _build_runner_for_three_advocates(
             key=lambda i: history[i][1].aggregate_score,
             default=-1,
         ) if history else -1
-        from autobench.population import AdvocateResult
+        from autobench.rsi.population import AdvocateResult
         return AdvocateResult(
             advocate_id=adv_id,
             session_id=obs.session_id,

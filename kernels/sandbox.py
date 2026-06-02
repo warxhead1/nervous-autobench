@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 
-from ..sandbox import SandboxedExecutor  # autobench.sandbox — package-relative
+from ..engines.sandbox import SandboxedExecutor  # autobench.sandbox — package-relative
 
 logger = logging.getLogger(__name__)
 

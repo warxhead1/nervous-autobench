@@ -6,7 +6,7 @@ import os
 import unittest
 from unittest import mock
 
-from autobench.default_judge_factory import (
+from autobench.llm.judge import (
     _parse_judge_response,
     make_minimax_judge_factory,
 )

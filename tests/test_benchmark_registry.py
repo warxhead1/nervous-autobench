@@ -32,7 +32,7 @@ from typing import Any
 import pytest
 from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
-from autobench.benchmark_registry import (
+from autobench.evaluation.registry import (
     DEFAULT_DOMAIN,
     DEFAULT_WEIGHTS,
     BenchmarkDomain,
@@ -46,12 +46,12 @@ from autobench.observability import (
     CHANNEL_CROSS_DOMAIN_EVALUATION,
     AutobenchObservability,
 )
-from autobench.population import (
+from autobench.rsi.population import (
     AdvocateResult,
     PopulationRunner,
     select_promotion_candidate,
 )
-from autobench.rsi_loop import ImprovementDelta
+from autobench.rsi.loop import ImprovementDelta
 
 
 

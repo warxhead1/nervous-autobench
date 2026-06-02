@@ -24,7 +24,7 @@ from autobench.observability import (
     AutobenchObservability,
     CHANNEL_WORKER_QUEUE_PRESSURE,
 )
-from autobench.worker_agent import MiniMaxWorker
+from autobench.llm.worker import MiniMaxWorker
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@ def _run_calls(
     # Install on the persistent client slot — no httpx.Client patch needed.
     worker._http_client = mock_client
 
-    with patch("autobench.worker_agent.time.monotonic", side_effect=driver):
+    with patch("autobench.llm.worker.time.monotonic", side_effect=driver):
         for _ in range(len(latencies_seconds)):
             worker.generate("p", harness, case_id="c")
 
@@ -301,8 +301,8 @@ def test_timeout_counter_tracks_retries(monkeypatch, tmp_path):
         gap_seconds=0.1,
     )
 
-    with patch("autobench.worker_agent.time.monotonic", side_effect=driver), \
-         patch("autobench.worker_agent.time.sleep"):
+    with patch("autobench.llm.worker.time.monotonic", side_effect=driver), \
+         patch("autobench.llm.worker.time.sleep"):
         for _ in range(4):
             w.generate("p", harness, case_id="c")
 

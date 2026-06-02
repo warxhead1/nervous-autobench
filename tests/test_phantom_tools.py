@@ -21,7 +21,7 @@ import json
 import logging
 
 from autobench.core import HarnessConfig
-from autobench.minimax_improver import MiniMaxLLMWrapper, _is_no_op_value
+from autobench.llm.minimax import MiniMaxLLMWrapper, _is_no_op_value
 
 
 def _wrapper() -> MiniMaxLLMWrapper:
@@ -49,7 +49,7 @@ def test_phantom_tool_proposal_is_rejected(caplog) -> None:
     })
 
     base = _base_harness()
-    with caplog.at_level(logging.WARNING, logger="autobench.minimax_improver"):
+    with caplog.at_level(logging.WARNING, logger="autobench.llm.minimax"):
         new_harness, delta = _wrapper()._parse_llm_response(base, response)
 
     # tool_surface must be UNCHANGED — phantom tool proposal was ignored.
@@ -118,7 +118,7 @@ def test_null_value_passes_cleanly() -> None:
 
 def test_rule_based_parser_also_rejects_phantom_tools(caplog) -> None:
     """The legacy in-module ``_parse_llm_improvement`` must reject phantom tools too."""
-    from autobench.rsi_loop import _parse_llm_improvement
+    from autobench.rsi.loop import _parse_llm_improvement
     base = _base_harness()
     text = json.dumps({
         "system_prompt_changes": "",
@@ -127,7 +127,7 @@ def test_rule_based_parser_also_rejects_phantom_tools(caplog) -> None:
         "tool_surface_changes": "Add validate_code_start(s) tool that ...",
         "rationale": "phantom",
     })
-    with caplog.at_level(logging.WARNING, logger="autobench.rsi_loop"):
+    with caplog.at_level(logging.WARNING, logger="autobench.rsi.loop"):
         new_harness, delta = _parse_llm_improvement(base, text)
     assert new_harness.tool_surface == base.tool_surface
     assert delta.tool_surface_delta == ""
@@ -137,7 +137,7 @@ def test_rule_based_parser_also_rejects_phantom_tools(caplog) -> None:
 def test_constraint_text_present_in_diagnosis_prompts() -> None:
     """Diagnosis prompts must explicitly state the tool_surface_changes constraint."""
     from autobench.evaluator import BenchmarkResult
-    from autobench.minimax_improver import MiniMaxLLMWrapper
+    from autobench.llm.minimax import MiniMaxLLMWrapper
 
     bench = BenchmarkResult(
         case_results=[],

@@ -18,7 +18,7 @@ from autobench.core import (
     Verdict,
 )
 from autobench.evaluator import BenchmarkCase, BenchmarkResult
-from autobench.replay import (
+from autobench.rsi.replay import (
     CounterfactualRunner,
     ReplayComparison,
     ReplayLoader,

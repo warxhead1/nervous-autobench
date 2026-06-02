@@ -364,7 +364,7 @@ class MultiImproverEnsemble:
             # Late binding via the back-compat shim so tests that
             # ``monkeypatch.setattr(autobench.multi_improver,
             # "_default_wrapper_factory", ...)`` still take effect.
-            import autobench.multi_improver
+            import autobench.llm.ensemble
             self._wrapper_factory: Callable[[], Any] = (
                 autobench.multi_improver._default_wrapper_factory
             )
@@ -522,7 +522,7 @@ def _default_wrapper_factory() -> Any:
     forcing MINIMAX_API_KEY at import time. Lookup goes via the back-compat
     shim at the old root path so test monkeypatches still take effect.
     """
-    import autobench.minimax_improver  # noqa: WPS433 — lazy for tests
+    import autobench.llm.minimax  # noqa: WPS433 — lazy for tests
     return autobench.minimax_improver.MiniMaxLLMWrapper()
 
 

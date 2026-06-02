@@ -292,7 +292,7 @@ def test_e2e_live_refute_fires_once_during_iter1(debug_file: Path) -> None:
       * Refutation must fire exactly once across all of iter 1.
     """
     from autobench.core import HarnessConfig, Verdict
-    from autobench.rsi_loop import ImprovementDelta, SelfImprovingHarness
+    from autobench.rsi.loop import ImprovementDelta, SelfImprovingHarness
 
     # Build a mock evaluator whose ``_run_case`` returns a fixed verdict per
     # call (so the rsi_loop's monkey-patch wrapper exercises real interception).

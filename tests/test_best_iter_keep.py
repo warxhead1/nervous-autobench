@@ -29,7 +29,7 @@ from typing import Any
 from autobench.core import HarnessConfig, HarnessResult, Verdict
 from autobench.evaluator import BenchmarkResult
 from autobench.observability import AutobenchObservability
-from autobench.rsi_loop import (
+from autobench.rsi.loop import (
     DEFAULT_VARIANCE_FLOOR_2SIGMA,
     ImprovementDelta,
     SelfImprovingHarness,
@@ -299,7 +299,7 @@ def test_improver_sees_revert_context_via_kwarg():
 def test_diagnosis_prompt_includes_revert_history_block():
     """When revert_history is non-empty, the MiniMax diagnosis prompt
     surfaces a REVERT HISTORY section."""
-    from autobench.minimax_improver import MiniMaxLLMWrapper, _format_revert_history_block
+    from autobench.llm.minimax import MiniMaxLLMWrapper, _format_revert_history_block
 
     rendered = _format_revert_history_block([
         {

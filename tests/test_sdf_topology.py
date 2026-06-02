@@ -200,7 +200,7 @@ def test_sdf_island_routing():
     Patches ensure_executor to bypass the gVisor gate, then replaces
     evaluate_candidate with a spy that records which instance was used.
     """
-    from autobench.kernel_base import KernelConfig, CandidateProgram
+    from autobench.kernels import KernelConfig, CandidateProgram
 
     dummy_executor = _mock_executor()
 

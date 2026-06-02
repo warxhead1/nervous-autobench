@@ -2,7 +2,7 @@
 
 Covers Phase 4 of the wire-pop epic (nervous-bus-pmrg). The wiring lives in
 ``autobench.benchmarks.codeforces_tier1.run_first._load_cases`` and the new
-``autobench.curriculum.daily_synthesis`` entry point.
+``autobench.evaluation.curriculum.daily_synthesis`` entry point.
 
 What's exercised here:
 
@@ -32,7 +32,7 @@ from autobench.benchmarks.codeforces_tier1.run_first import (
     _load_fixed_cases,
     CASES_FILE,
 )
-from autobench.curriculum import (
+from autobench.evaluation.curriculum import (
     DEFAULT_CACHE_DIR,
     _difficulty_for_target_skill,
     daily_synthesis,
@@ -116,7 +116,7 @@ def test_curriculum_enabled_calls_daily_synthesis(
     """With curriculum enabled, _load_cases routes through daily_synthesis."""
     # Redirect cache to a tmp dir so we don't pollute autobench/data.
     monkeypatch.setattr(
-        "autobench.curriculum.DEFAULT_CACHE_DIR",
+        "autobench.evaluation.curriculum.DEFAULT_CACHE_DIR",
         tmp_path / "cache",
     )
 
@@ -133,7 +133,7 @@ def test_curriculum_enabled_calls_daily_synthesis(
         return daily_synthesis(*args, **kwargs)
 
     with patch(
-        "autobench.curriculum.daily_synthesis",
+        "autobench.evaluation.curriculum.daily_synthesis",
         side_effect=_wrapped_synthesis,
     ):
         cases = _load_cases(use_curriculum=True, target_skill=0.5)
@@ -151,7 +151,7 @@ def test_curriculum_empty_falls_back_to_fixed(
 ) -> None:
     """daily_synthesis returns [] → _load_cases falls through, never raises."""
     monkeypatch.setattr(
-        "autobench.curriculum.DEFAULT_CACHE_DIR",
+        "autobench.evaluation.curriculum.DEFAULT_CACHE_DIR",
         tmp_path / "cache",
     )
 
@@ -159,7 +159,7 @@ def test_curriculum_empty_falls_back_to_fixed(
         return []
 
     with patch(
-        "autobench.curriculum.daily_synthesis",
+        "autobench.evaluation.curriculum.daily_synthesis",
         side_effect=_empty_synthesis,
     ):
         cases = _load_cases(use_curriculum=True, target_skill=0.5)
@@ -175,7 +175,7 @@ def test_curriculum_exception_falls_back_to_fixed(
 ) -> None:
     """If daily_synthesis raises, _load_cases still produces cf-tier-1 cases."""
     monkeypatch.setattr(
-        "autobench.curriculum.DEFAULT_CACHE_DIR",
+        "autobench.evaluation.curriculum.DEFAULT_CACHE_DIR",
         tmp_path / "cache",
     )
 
@@ -183,7 +183,7 @@ def test_curriculum_exception_falls_back_to_fixed(
         raise RuntimeError("simulated curriculum failure")
 
     with patch(
-        "autobench.curriculum.daily_synthesis",
+        "autobench.evaluation.curriculum.daily_synthesis",
         side_effect=_boom,
     ):
         cases = _load_cases(use_curriculum=True, target_skill=0.5)

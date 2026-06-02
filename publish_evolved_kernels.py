@@ -35,7 +35,7 @@ VAULT_URL = "http://127.0.0.1:9104/api/portal/vault/shaders"
 # --------------------------------------------------------------------------- #
 
 sys.path.insert(0, str(Path(__file__).parent))
-from nervous_kernel_bridge import NervousKernelBridge  # noqa: E402
+from autobench.kernels.bridge import NervousKernelBridge  # noqa: E402
 
 _bridge = NervousKernelBridge()
 

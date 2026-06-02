@@ -1,4 +1,4 @@
-"""Tests for autobench.refactor_verifier — tier-1 symbol-rename verification."""
+"""Tests for autobench.audit.refactor_verifier — tier-1 symbol-rename verification."""
 
 from __future__ import annotations
 
@@ -211,7 +211,7 @@ def test_run_test_suite_timeout(tmp_path):
 def test_check_scope_falls_back_when_ast_grep_missing(tmp_path):
     (tmp_path / "m.py").write_text("def bar():\n    return bar\n")
     v = RenameVerifier(target_repo=tmp_path, old_name="foo", new_name="bar")
-    with mock.patch("autobench.refactor_verifier._which", return_value=None):
+    with mock.patch("autobench.audit.refactor_verifier._which", return_value=None):
         scope = v.check_scope()
     assert scope["tool"] == "python-ast-fallback"
     assert scope["new_count"] >= 1
@@ -226,7 +226,7 @@ def test_check_drift_falls_back_when_difft_missing(tmp_path):
     (before / "m.py").write_text("def foo():\n    return 1\n")
     (after / "m.py").write_text("def bar():\n    return 1\n")
     v = RenameVerifier(target_repo=after, before_repo=before, old_name="foo", new_name="bar")
-    with mock.patch("autobench.refactor_verifier._which", return_value=None):
+    with mock.patch("autobench.audit.refactor_verifier._which", return_value=None):
         drift = v.check_drift()
     assert drift["tool"] == "python-ast-fallback"
     assert drift["drift_files"] == []

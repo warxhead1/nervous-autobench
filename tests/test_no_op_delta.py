@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from autobench.core import ContextManager, HarnessConfig, RolloutProtocol
-from autobench.minimax_improver import MiniMaxLLMWrapper, _is_no_op_value
+from autobench.llm.minimax import MiniMaxLLMWrapper, _is_no_op_value
 
 
 @pytest.mark.parametrize(

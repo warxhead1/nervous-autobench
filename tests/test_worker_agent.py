@@ -15,7 +15,7 @@ from autobench.observability import (
     AutobenchObservability,
     CHANNEL_WORKER,
 )
-from autobench.worker_agent import (
+from autobench.llm.worker import (
     MiniMaxWorker,
     WorkerResult,
     _calc_backoff_ms,
@@ -216,7 +216,7 @@ def test_worker_anthropic_endpoint_payload_shape(monkeypatch):
 
 def test_extract_code_strips_think_block():
     """Defensive: <think>...</think> blocks are stripped before fence extraction."""
-    from autobench.worker_agent import _extract_code
+    from autobench.llm.worker import _extract_code
     raw = "<think>\nLet me reason about this.\nThe answer is 42.\n</think>\n\nimport sys\nprint(42)\n"
     assert _extract_code(raw) == "import sys\nprint(42)"
 
@@ -305,7 +305,7 @@ def test_retry_on_5xx_then_success(monkeypatch):
 
     mock_client = _install_mock_client(w, [err_resp, success_resp])
 
-    with patch("autobench.worker_agent.time.sleep"):  # don't actually sleep
+    with patch("autobench.llm.worker.time.sleep"):  # don't actually sleep
         result = w.generate("p", harness)
 
     assert result.code == "ok_code"
@@ -325,7 +325,7 @@ def test_total_failure_falls_through_to_fallback_then_empty(monkeypatch):
     # 2 primary attempts + 2 fallback attempts = 4 total HTTP posts
     mock_client = _install_mock_client(w, err_resp)
 
-    with patch("autobench.worker_agent.time.sleep"):
+    with patch("autobench.llm.worker.time.sleep"):
         result = w.generate("p", harness)
 
     # Should NOT raise; should return empty code.
@@ -347,7 +347,7 @@ def test_non_retriable_4xx_bails_immediately(monkeypatch):
 
     mock_client = _install_mock_client(w, err_resp)
 
-    with patch("autobench.worker_agent.time.sleep"):
+    with patch("autobench.llm.worker.time.sleep"):
         result = w.generate("p", harness)
 
     # Primary bails after 1 attempt; fallback also bails after 1 attempt.
@@ -646,7 +646,7 @@ def test_post_close_falls_back_to_one_shot_client(monkeypatch):
     mock_resp.raise_for_status.return_value = None
     mock_client.__enter__.return_value.post.return_value = mock_resp
 
-    with patch("autobench.worker_agent.httpx.Client", return_value=mock_client):
+    with patch("autobench.llm.worker.httpx.Client", return_value=mock_client):
         result = w.generate("p", _make_harness())
 
     assert result.code == "recovered"

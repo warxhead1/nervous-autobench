@@ -26,7 +26,7 @@ def _make_prior(tmp_path: pathlib.Path, n_entries: int = 12):
     Fitness ramps 0.05 → 0.60 so top-25% (n//4 entries) have highest fitness.
     T-vector values are spread linearly so the top group has non-zero variance.
     """
-    from autobench.kernel_base import ConsolidatedPrior
+    from autobench.kernels import ConsolidatedPrior
 
     prior = ConsolidatedPrior("test", tmp_path / "prior.jsonl")
     for i in range(n_entries):
@@ -50,7 +50,7 @@ def _make_prior(tmp_path: pathlib.Path, n_entries: int = 12):
 
 def test_consolidated_prior_roundtrip():
     """Append a T-vector, reload from file, verify the entry is preserved."""
-    from autobench.kernel_base import ConsolidatedPrior
+    from autobench.kernels import ConsolidatedPrior
 
     with tempfile.TemporaryDirectory(prefix="prior_test_") as tmp:
         tmp_path = pathlib.Path(tmp)
@@ -79,7 +79,7 @@ def test_consolidated_prior_roundtrip():
 
 def test_consolidated_prior_roundtrip_multiple_entries():
     """Multiple appends survive a reload — file is append-only JSONL."""
-    from autobench.kernel_base import ConsolidatedPrior
+    from autobench.kernels import ConsolidatedPrior
 
     with tempfile.TemporaryDirectory(prefix="prior_test_") as tmp:
         tmp_path = pathlib.Path(tmp)
@@ -140,7 +140,7 @@ def test_consolidated_prior_fit_top_quartile_only():
 
 def test_consolidated_prior_fit_empty_returns_empty():
     """fit() on empty prior returns {}."""
-    from autobench.kernel_base import ConsolidatedPrior
+    from autobench.kernels import ConsolidatedPrior
 
     with tempfile.TemporaryDirectory(prefix="prior_test_") as tmp:
         tmp_path = pathlib.Path(tmp)
@@ -175,7 +175,7 @@ def test_diversity_score_far_is_higher_than_near():
 
 def test_diversity_score_empty_prior_returns_one():
     """When no prior exists, diversity_score returns 1.0 (maximal novelty)."""
-    from autobench.kernel_base import ConsolidatedPrior
+    from autobench.kernels import ConsolidatedPrior
 
     with tempfile.TemporaryDirectory(prefix="prior_test_") as tmp:
         tmp_path = pathlib.Path(tmp)

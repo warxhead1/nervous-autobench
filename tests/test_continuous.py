@@ -351,7 +351,7 @@ def test_digest_writes_markdown(workspace: Path, tmp_path: Path) -> None:
 
 def test_cli_help_exits_zero() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "autobench.continuous", "--help"],
+        [sys.executable, "-m", "autobench.daemons.continuous", "--help"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -373,7 +373,7 @@ def test_cli_digest_on_empty_workspace(tmp_path: Path, monkeypatch: pytest.Monke
     debug = tmp_path / "debug.jsonl"
     debug.write_text("")
     monkeypatch.setattr(
-        "autobench.continuous.DEBUG_FILE", debug
+        "autobench.daemons.continuous.DEBUG_FILE", debug
     )
     # Default subcommand `status` was tested above; explicitly run digest.
     rc = cli_main(["--workspace", str(tmp_path / "ws2"), "digest"])

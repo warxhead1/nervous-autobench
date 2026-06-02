@@ -31,13 +31,13 @@ from autobench.observability import (
     CHANNEL_POPULATION_SUMMARY,
     AutobenchObservability,
 )
-from autobench.population import (
+from autobench.rsi.population import (
     AdvocateResult,
     PopulationResult,
     PopulationRunner,
     _read_n_advocates_env,
 )
-from autobench.rsi_loop import ImprovementDelta
+from autobench.rsi.loop import ImprovementDelta
 
 
 

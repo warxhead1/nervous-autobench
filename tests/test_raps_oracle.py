@@ -138,7 +138,7 @@ def test_noise_extract_t_vector_contains_spectral_beta():
     Integration test: constructs NoiseKernel without GPU (graceful degradation).
     extract_t_vector() falls back to 0.0 for any stash that hasn't been written.
     """
-    from autobench.kernel_base import KernelConfig, CandidateProgram
+    from autobench.kernels import KernelConfig, CandidateProgram
     from autobench.noise_kernel import NoiseKernel
 
     with tempfile.TemporaryDirectory(prefix="raps_test_") as tmp:

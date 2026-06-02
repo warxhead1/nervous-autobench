@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from tests._paths import SCHEMA_DIR, NBUS_ROOT as REPO_ROOT
 
-from autobench.adversarial import (
+from autobench.rsi.adversarial import (
     _STATIC_FALLBACK,
     AdversarialCase,
     AdversarialDual,
@@ -136,7 +136,7 @@ def test_target_failure_mode_appears_in_request_body(monkeypatch):
             resp.json = MagicMock(return_value=_chat_response(_valid_generator_payload()))
             return resp
 
-    with patch("autobench.adversarial.httpx.Client", _StubClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _StubClient):
         gen.generate_curveball(target_failure_mode="integer_overflow")
 
     user_msg = captured["json"]["messages"][1]["content"]
@@ -167,7 +167,7 @@ def test_difficulty_and_domain_appear_in_prompt(monkeypatch):
             resp.json = MagicMock(return_value=_chat_response(_valid_generator_payload()))
             return resp
 
-    with patch("autobench.adversarial.httpx.Client", _StubClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _StubClient):
         gen.generate_curveball(
             domain="shader_programming",
             target_difficulty="hard",
@@ -208,7 +208,7 @@ def test_request_payload_shape(monkeypatch):
             resp.json = MagicMock(return_value=_chat_response(_valid_generator_payload()))
             return resp
 
-    with patch("autobench.adversarial.httpx.Client", _StubClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _StubClient):
         gen.generate_curveball()
 
     assert captured["url"] == "https://api.minimax.io/v1/chat/completions"
@@ -253,7 +253,7 @@ def test_parses_valid_response_into_adversarial_case(monkeypatch):
             ))
             return resp
 
-    with patch("autobench.adversarial.httpx.Client", _StubClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _StubClient):
         case = gen.generate_curveball(target_failure_mode="integer_overflow")
 
     assert isinstance(case, AdversarialCase)
@@ -289,7 +289,7 @@ def test_parses_markdown_fenced_response(monkeypatch):
             resp.json = MagicMock(return_value=_chat_response(fenced))
             return resp
 
-    with patch("autobench.adversarial.httpx.Client", _StubClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _StubClient):
         case = gen.generate_curveball()
 
     assert case.generator_model == "MiniMax-M2.7"  # not the fallback
@@ -321,7 +321,7 @@ def test_malformed_json_falls_back_to_static(monkeypatch):
             resp.json = MagicMock(return_value=_chat_response("just words, no json here"))
             return resp
 
-    with patch("autobench.adversarial.httpx.Client", _STAtic := _StubClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _STAtic := _StubClient):
         case = gen.generate_curveball(target_failure_mode="empty_input")
 
     assert case.generator_model == "fallback_static"
@@ -346,7 +346,7 @@ def test_http_error_falls_back_to_static(monkeypatch):
         def post(self, url, json=None, headers=None):
             raise RuntimeError("network down")
 
-    with patch("autobench.adversarial.httpx.Client", _BoomClient):
+    with patch("autobench.rsi.adversarial.httpx.Client", _BoomClient):
         case = gen.generate_curveball(target_failure_mode="off_by_one")
 
     assert case.generator_model == "fallback_static"

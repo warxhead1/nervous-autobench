@@ -26,9 +26,9 @@ from autobench.core import (
     Verdict,
 )
 from autobench.evaluator import BenchmarkResult
-from autobench.llm_improver import AnthropicLLMWrapper
-from autobench.minimax_improver import MiniMaxLLMWrapper
-from autobench.rsi_loop import ImprovementDelta, _build_diagnosis_prompt
+from autobench.llm.anthropic import AnthropicLLMWrapper
+from autobench.llm.minimax import MiniMaxLLMWrapper
+from autobench.rsi.loop import ImprovementDelta, _build_diagnosis_prompt
 
 
 def _bench() -> BenchmarkResult:

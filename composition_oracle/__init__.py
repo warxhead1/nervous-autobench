@@ -45,7 +45,7 @@ import math
 from typing import Any, Optional
 
 from ..core import Verdict
-from ..sandbox import SandboxedExecutor, compile_and_run
+from ..engines.sandbox import SandboxedExecutor, compile_and_run
 
 logger = logging.getLogger(__name__)
 

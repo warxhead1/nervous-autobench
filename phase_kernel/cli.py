@@ -27,7 +27,7 @@ from . import (
 )
 from ..kernels import KernelConfig
 from ..core import Verdict
-from ..sandbox import compile_and_run
+from ..engines.sandbox import compile_and_run
 
 
 def setup_logging(verbose: bool = False) -> None:

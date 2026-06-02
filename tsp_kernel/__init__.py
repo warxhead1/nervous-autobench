@@ -521,7 +521,7 @@ class Island:
 # ---------------------------------------------------------------------------
 
 from ..core import Verdict  # noqa: E402  (kept local to the runner section)
-from ..sandbox import SandboxedExecutor, compile_and_run  # noqa: E402
+from ..engines.sandbox import SandboxedExecutor, compile_and_run  # noqa: E402
 # FunSearchKernel + ensure_sandboxed_executor + KernelConfig come from autobench.kernels.
 # We re-export them below for back-compat with existing imports inside this file.
 from ..kernels import (  # noqa: E402

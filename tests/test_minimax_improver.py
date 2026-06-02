@@ -16,9 +16,9 @@ from autobench.core import (
     Verdict,
 )
 from autobench.evaluator import BenchmarkResult
-from autobench.llm_improver import LLMImprovementResult
-from autobench.minimax_improver import MiniMaxLLMWrapper
-from autobench.rsi_loop import ImprovementDelta
+from autobench.llm.anthropic import LLMImprovementResult
+from autobench.llm.minimax import MiniMaxLLMWrapper
+from autobench.rsi.loop import ImprovementDelta
 
 
 # ---------------------------------------------------------------------------
@@ -416,7 +416,7 @@ def test_anthropic_mode_falls_back_on_malformed_payload(monkeypatch):
 
 def test_module_level_parse_response_anthropic_concatenates_text_blocks():
     """If a response has multiple text blocks (rare but spec'd), concatenate them."""
-    from autobench.minimax_improver import _parse_response
+    from autobench.llm.minimax import _parse_response
     resp = {
         "content": [
             {"type": "thinking", "thinking": "ignored"},
@@ -433,7 +433,7 @@ def test_module_level_parse_response_anthropic_concatenates_text_blocks():
 
 def test_module_level_parse_response_openai_legacy_path():
     """OpenAI mode pulls from choices[0].message.content with prompt_/completion_."""
-    from autobench.minimax_improver import _parse_response
+    from autobench.llm.minimax import _parse_response
     resp = _mock_chat_response("HELLO", prompt_tokens=11, completion_tokens=22)
     text, inp, out = _parse_response(resp, "openai")
     assert text == "HELLO"

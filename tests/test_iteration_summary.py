@@ -26,7 +26,7 @@ from autobench.observability import (
     AutobenchObservability,
     CHANNEL_ITERATION_SUMMARY,
 )
-from autobench.rsi_loop import ImprovementDelta, SelfImprovingHarness
+from autobench.rsi.loop import ImprovementDelta, SelfImprovingHarness
 
 
 from tests._paths import SCHEMA_DIR

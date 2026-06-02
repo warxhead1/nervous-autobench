@@ -244,7 +244,7 @@ class PopulationRunner:
             return None
         # Lazy import — budget_guard imports observability for its own emitter,
         # and we'd rather not pull it at module import time.
-        from ..budget_guard import BudgetGuard
+        from ..audit.budget_guard import BudgetGuard
         return BudgetGuard(
             max_cost_dollars=0,
             max_wall_time_seconds=float(self.budget_per_advocate_seconds),

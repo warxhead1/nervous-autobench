@@ -326,7 +326,7 @@ def _make_rsi_harness_for_e2e(obs: AutobenchObservability):
     iter-0 prediction in iter 1."""
     from autobench.core import HarnessConfig
     from autobench.evaluator import BenchmarkEvaluator
-    from autobench.rsi_loop import ImprovementDelta, SelfImprovingHarness
+    from autobench.rsi.loop import ImprovementDelta, SelfImprovingHarness
 
     base_harness = HarnessConfig()
 

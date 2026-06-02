@@ -1504,7 +1504,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _cli(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser("autobench.curriculum")
+    p = argparse.ArgumentParser("autobench.evaluation.curriculum")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     p_once = sub.add_parser("once", help="run one curriculum cycle now")
@@ -1527,7 +1527,7 @@ def _cli(argv: list[str] | None = None) -> int:
     # calls aren't routed through it here (separate bead).
     budget_guard = None
     if args.validate:
-        from autobench.budget_guard import RateBudgetGuard
+        from autobench.audit.budget_guard import RateBudgetGuard
         budget_guard = RateBudgetGuard(max_requests=args.max_requests)
         logger.info(
             "curriculum: validate=True, RateBudgetGuard cap=%d (effective %d after margin)",

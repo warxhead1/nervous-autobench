@@ -26,12 +26,12 @@ from autobench.daemons.continuous import (
     _resolve_promotion_ledger_path,
 )
 from autobench.core import ContextManager, HarnessConfig, RolloutProtocol
-from autobench.population import (
+from autobench.rsi.population import (
     AdvocateResult,
     PopulationResult,
     select_promotion_candidate,
 )
-from autobench.rsi_loop import ImprovementDelta
+from autobench.rsi.loop import ImprovementDelta
 
 
 

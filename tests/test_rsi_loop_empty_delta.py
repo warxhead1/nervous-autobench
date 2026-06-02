@@ -13,7 +13,7 @@ from typing import Any
 
 from autobench.core import HarnessConfig
 from autobench.evaluator import BenchmarkEvaluator, BenchmarkResult
-from autobench.rsi_loop import ImprovementDelta, SelfImprovingHarness
+from autobench.rsi.loop import ImprovementDelta, SelfImprovingHarness
 
 
 class _StubEvaluator:

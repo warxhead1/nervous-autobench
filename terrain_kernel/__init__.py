@@ -66,7 +66,7 @@ from ..kernels import (
     ensure_sandboxed_executor, UnsafeSandboxError, register_kernel,
 )
 from ..core import Verdict
-from ..sandbox import SandboxedExecutor, compile_and_run
+from ..engines.sandbox import SandboxedExecutor, compile_and_run
 
 logger = logging.getLogger(__name__)
 
@@ -715,7 +715,7 @@ class TerrainKernel(FunSearchKernel):
 
     def _publish_started(self) -> None:
         """Emit terrain.kernel.started.v1 when the run begins."""
-        from ..kernel_base import _git_commit_short
+        from ..kernels import _git_commit_short
         self._publish("terrain.kernel.started.v1", {
             "run_id": self.run_id,
             "git_commit": _git_commit_short(),

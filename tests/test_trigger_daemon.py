@@ -402,7 +402,7 @@ def test_run_cycle_with_population_runner_uses_improver_strategy(monkeypatch):
     # PopulationRunner, BenchmarkRegistry, BenchmarkEvaluator are lazy-imported
     # inside _run_cycle_with_population_runner, so we patch their source modules.
     monkeypatch.setattr(
-        "autobench.population.PopulationRunner", _FakeRunner
+        "autobench.rsi.population.PopulationRunner", _FakeRunner
     )
 
     # The registry must return at least one case for the test domain so that the
@@ -421,7 +421,7 @@ def test_run_cycle_with_population_runner_uses_improver_strategy(monkeypatch):
         def __init__(self, obs):
             pass
 
-    monkeypatch.setattr("autobench.benchmark_registry.BenchmarkRegistry", _FakeRegistry)
+    monkeypatch.setattr("autobench.evaluation.registry.BenchmarkRegistry", _FakeRegistry)
     monkeypatch.setattr("autobench.evaluator.BenchmarkEvaluator", _FakeEvaluator)
 
     obs = MagicMock()

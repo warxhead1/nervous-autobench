@@ -91,7 +91,7 @@ from ..kernels import (
     ensure_sandboxed_executor, UnsafeSandboxError, register_kernel,
 )
 from ..core import Verdict
-from ..sandbox import SandboxedExecutor, compile_and_run
+from ..engines.sandbox import SandboxedExecutor, compile_and_run
 
 # Back-compat: tests and external code patch `autobench.sdf_kernel.ensure_executor`.
 # The local copy used to be a near-duplicate of kernels.ensure_sandboxed_executor
@@ -1402,7 +1402,7 @@ class SDFKernel(FunSearchKernel):
         # (ShaderExecutor) if the CPU tracer isn't available.
         if self.config.allow_unsandboxed:
             try:
-                from ..sdf_tracer import render_sdf_cpp_to_png  # type: ignore
+                from ..engines.sdf_tracer import render_sdf_cpp_to_png  # type: ignore
                 from ..artifact_store import _INSTANCE_CAMERA_DIST  # type: ignore
                 inst_name = (
                     self.problem_instances[best.island % len(self.problem_instances)].name

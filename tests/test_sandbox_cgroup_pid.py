@@ -119,7 +119,7 @@ def test_cgroup_contains_child_not_parent(tmp_path):
 def test_run_in_cgroup_dead_function_removed():
     """The standalone run_in_cgroup function was dead code that wrote the
     parent PID — confirm it's gone (consolidation evidence)."""
-    from autobench import sandbox
+    from autobench.engines import sandbox
 
     assert not hasattr(sandbox, "run_in_cgroup"), (
         "run_in_cgroup should be removed; the inline path in "

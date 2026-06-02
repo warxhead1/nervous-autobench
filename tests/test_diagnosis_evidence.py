@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from autobench.core import ContextManager, HarnessConfig, RolloutProtocol, Verdict
-from autobench.llm_improver import _build_evidence_section
+from autobench.llm.anthropic import _build_evidence_section
 
 
 def _mock_result(case_id: str, verdict: Verdict, code: str):
@@ -88,7 +88,7 @@ def test_diagnosis_prompt_contains_evidence_not_canned_guidance(monkeypatch):
     and must NOT contain the deprecated canned guidance sentences."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
     monkeypatch.setattr("anthropic.Anthropic", MagicMock())  # don't need real client
-    from autobench.llm_improver import AnthropicLLMWrapper
+    from autobench.llm.anthropic import AnthropicLLMWrapper
 
     wrapper = AnthropicLLMWrapper()
 
@@ -135,7 +135,7 @@ def test_diagnosis_prompt_contains_evidence_not_canned_guidance(monkeypatch):
 def test_minimax_diagnosis_prompt_uses_same_evidence_pattern(monkeypatch):
     """MiniMax improver's prompt must also be evidence-driven (mirror of llm_improver)."""
     monkeypatch.setenv("MINIMAX_API_KEY", "k")
-    from autobench.minimax_improver import MiniMaxLLMWrapper
+    from autobench.llm.minimax import MiniMaxLLMWrapper
 
     wrapper = MiniMaxLLMWrapper()
 

@@ -25,7 +25,7 @@ from autobench.observability import (
     CHANNEL_PHASE,
     CHANNEL_SANDBOX,
 )
-from autobench.rsi_loop import SelfImprovingHarness
+from autobench.rsi.loop import SelfImprovingHarness
 
 
 @pytest.fixture

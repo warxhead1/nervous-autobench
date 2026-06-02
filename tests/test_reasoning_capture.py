@@ -37,7 +37,7 @@ from autobench.observability import (
     CHANNEL_IMPROVER_REASONING,
     _dict_diff,
 )
-from autobench.rsi_loop import ImprovementDelta, SelfImprovingHarness
+from autobench.rsi.loop import ImprovementDelta, SelfImprovingHarness
 
 
 
@@ -132,7 +132,7 @@ def _mock_anthropic_response(content: str, *, input_tokens: int = 120,
 
 def test_minimax_success_emits_reasoning_ok(monkeypatch, debug_file):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    from autobench.minimax_improver import MiniMaxLLMWrapper
+    from autobench.llm.minimax import MiniMaxLLMWrapper
 
     obs = AutobenchObservability(debug_file=debug_file)
     wrapper = MiniMaxLLMWrapper(endpoint_mode="openai")
@@ -177,7 +177,7 @@ def test_minimax_success_emits_reasoning_ok(monkeypatch, debug_file):
 
 def test_minimax_garbage_response_emits_fallback(monkeypatch, debug_file):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    from autobench.minimax_improver import MiniMaxLLMWrapper
+    from autobench.llm.minimax import MiniMaxLLMWrapper
 
     obs = AutobenchObservability(debug_file=debug_file)
     wrapper = MiniMaxLLMWrapper(endpoint_mode="openai")
@@ -205,7 +205,7 @@ def test_minimax_garbage_response_emits_fallback(monkeypatch, debug_file):
 
 def test_minimax_http_failure_emits_fallback(monkeypatch, debug_file):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    from autobench.minimax_improver import MiniMaxLLMWrapper
+    from autobench.llm.minimax import MiniMaxLLMWrapper
 
     obs = AutobenchObservability(debug_file=debug_file)
     wrapper = MiniMaxLLMWrapper(endpoint_mode="openai")
@@ -303,7 +303,7 @@ def test_divergence_fires_once_per_iteration(debug_file):
 def test_divergence_true_when_llm_disagrees_with_heuristic(monkeypatch, debug_file):
     """Wire a MiniMax wrapper that proposes a non-CE strategy on CE-dominant input."""
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    from autobench.minimax_improver import MiniMaxLLMWrapper
+    from autobench.llm.minimax import MiniMaxLLMWrapper
 
     obs = AutobenchObservability(debug_file=debug_file)
     wrapper = MiniMaxLLMWrapper(endpoint_mode="openai")
@@ -334,7 +334,7 @@ def test_divergence_true_when_llm_disagrees_with_heuristic(monkeypatch, debug_fi
         evaluator, "run",
         return_value=_make_bench_result_ce_dominant(),
     ), patch(
-        "autobench.minimax_improver.MiniMaxLLMWrapper._call_with_retries",
+        "autobench.llm.minimax.MiniMaxLLMWrapper._call_with_retries",
         return_value=_mock_anthropic_response(llm_json),
     ):
         harness_obj.improve([
@@ -398,7 +398,7 @@ def test_all_reasoning_and_divergence_events_validate(monkeypatch, debug_file):
         evaluator, "run",
         return_value=_make_bench_result_ce_dominant(),
     ), patch(
-        "autobench.minimax_improver.MiniMaxLLMWrapper._call_with_retries",
+        "autobench.llm.minimax.MiniMaxLLMWrapper._call_with_retries",
         return_value=_mock_anthropic_response(llm_json),
     ):
         harness_obj.improve([

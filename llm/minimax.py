@@ -717,7 +717,7 @@ Return ONLY valid JSON, no markdown or surrounding text.
 
         # AHE prediction contract: attach a Prediction if the model supplied one.
         try:
-            from ..ahe import parse_prediction_from_llm_response
+            from ..audit.ahe import parse_prediction_from_llm_response
             delta.prediction = parse_prediction_from_llm_response(response_text)
         except Exception:  # noqa: BLE001 — prediction is best-effort
             pass

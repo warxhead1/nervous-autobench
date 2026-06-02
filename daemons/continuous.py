@@ -452,7 +452,7 @@ class ContinuousModeDaemon:
         Returns:
             A :class:`PromotionDecision` describing the final outcome.
         """
-        from autobench.population import select_promotion_candidate
+        from autobench.rsi.population import select_promotion_candidate
 
         # Resolve env-var gates when explicit args are None.
         if confirm is None:
@@ -758,7 +758,7 @@ class ContinuousModeDaemon:
                 initial_score = float(getattr(pre, "aggregate_score", 0.0))
 
                 # RSI loop
-                from autobench.rsi_loop import SelfImprovingHarness
+                from autobench.rsi.loop import SelfImprovingHarness
                 sih = SelfImprovingHarness(
                     current_harness=canonical,
                     evaluator=evaluator,

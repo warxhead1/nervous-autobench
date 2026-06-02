@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from autobench.adversarial import (
+from autobench.rsi.adversarial import (
     DEFAULT_FAILURE_MODES,
     AdversarialCase,
     AdversarialGenerator,
@@ -29,7 +29,7 @@ from autobench.adversarial import (
     generate_adversarial_case_mix,
     mine_failure_modes_from_result,
 )
-from autobench.benchmark_assembly import (
+from autobench.evaluation.assembly import (
     DEFAULT_ADVERSARIAL_RATIO,
     assemble_benchmark_cases,
 )
@@ -347,7 +347,7 @@ def test_population_runner_threads_adversarial_ratio(debug_file: Path) -> None:
     """
     from autobench.core import HarnessConfig, HarnessResult, Verdict
     from autobench.evaluator import BenchmarkResult
-    from autobench.population import PopulationRunner
+    from autobench.rsi.population import PopulationRunner
 
     class _ScriptedEvaluator:
         def run(

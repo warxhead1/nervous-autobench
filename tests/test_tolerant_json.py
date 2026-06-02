@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from autobench.llm_improver import _tolerant_json_loads
+from autobench.llm.anthropic import _tolerant_json_loads
 
 
 def test_strict_json_passes_through():

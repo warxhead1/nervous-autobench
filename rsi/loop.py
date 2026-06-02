@@ -15,7 +15,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
-from ..budget_guard import BudgetExceeded
+from ..audit.budget_guard import BudgetExceeded
 from ..core import HarnessConfig, HarnessResult, RSILoop, Verdict
 from ..evaluator import BenchmarkEvaluator, BenchmarkResult
 from ..iteration_summary import build_iteration_summary, normalize_worker_usage
@@ -162,7 +162,7 @@ class SelfImprovingHarness:
             # Lookup via the back-compat shim at the old root path so test
             # monkeypatches on ``autobench.minimax_improver.MiniMaxLLMWrapper``
             # still take effect.
-            import autobench.minimax_improver
+            import autobench.llm.minimax
             wrapper = autobench.minimax_improver.MiniMaxLLMWrapper()
             def _minimax_improve(
                 h, r, iteration=0, revert_history=None,
@@ -193,7 +193,7 @@ class SelfImprovingHarness:
             return _ensemble_improve
         if self.default_improver == "anthropic":
             # See ``minimax`` branch above — go through the shim for test compat.
-            import autobench.llm_improver
+            import autobench.llm.anthropic
             wrapper = autobench.llm_improver.AnthropicLLMWrapper()
 
             def _anthropic_improve(
@@ -396,7 +396,7 @@ class SelfImprovingHarness:
             # AHE: verify the previous iteration's prediction against actuals.
             if pending_prediction is not None and prev_result is not None and self.obs:
                 try:
-                    from ..ahe import verify_prediction
+                    from ..audit.ahe import verify_prediction
                     # nervous-bus: extract mean dissent_ratio across cases so
                     # contested iterations are downweighted in the verification.
                     dissent_ratios_list = (
@@ -522,7 +522,7 @@ class SelfImprovingHarness:
             # prediction emission entirely when clipping occurs; the improver
             # learns from the clip reason in its next diagnosis prompt.
             if getattr(delta, "prediction", None) is not None and self.obs:
-                from ..ahe import clip_prediction_to_feasible
+                from ..audit.ahe import clip_prediction_to_feasible
 
                 prior_counts = dict(getattr(result, "verdict_counts", {}) or {})
                 num_cases = len(getattr(result, "case_results", []) or [])
@@ -544,7 +544,7 @@ class SelfImprovingHarness:
                     )
                 else:
                     # Feasible: assign identity and emit the prediction normally.
-                    from ..ahe import prediction_fingerprint as _pred_fingerprint
+                    from ..audit.ahe import prediction_fingerprint as _pred_fingerprint
                     from ..observability import _ulid
 
                     if not delta.prediction.prediction_id:
@@ -1049,7 +1049,7 @@ def _begin_live_refutation(
     # Pull prior-iter verdict counts using the same helper ``verify_prediction``
     # uses, so prediction-class keys match (handles Verdict-enum normalisation).
     try:
-        from ..ahe import _verdict_counts, refute_live
+        from ..audit.ahe import _verdict_counts, refute_live
     except Exception:  # noqa: BLE001
         return None
 

@@ -91,7 +91,7 @@ from ..kernels import (
     ensure_sandboxed_executor, register_kernel,
 )
 from ..core import Verdict
-from ..sandbox import SandboxedExecutor, compile_and_run
+from ..engines.sandbox import SandboxedExecutor, compile_and_run
 
 logger = logging.getLogger(__name__)
 
@@ -757,7 +757,7 @@ class PhaseKernel(FunSearchKernel):
 
     def _publish_started(self) -> None:
         """Emit phase.kernel.started.v1 when the run begins."""
-        from ..kernel_base import _git_commit_short
+        from ..kernels import _git_commit_short
         self._publish("phase.kernel.started.v1", {
             "run_id": self.run_id,
             "git_commit": _git_commit_short(),
