@@ -644,6 +644,8 @@ class FunSearchKernel(abc.ABC):
                     "run_id": self.run_id,
                     "generation": self.generation,
                     "island": island.id,
+                    "best_fitness": (island.best_program.fitness
+                                     if island.best_program else 0.0),
                     "plateau_count": self._island_plateau_counts.get(island.id, 0),
                     "population_size": len(island.population),
                     "age_since_last_reset": self._island_age.get(island.id, 0),
