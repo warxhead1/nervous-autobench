@@ -31,6 +31,7 @@ import logging
 import math
 import os
 import random
+import subprocess
 import threading
 import time
 import uuid
@@ -861,7 +862,24 @@ class FunSearchKernel(abc.ABC):
     # ------------------------------------------------------------------
 
     def _publish_started(self) -> None:
-        pass  # subclasses override with domain-specific channel
+        """Emit ``<prefix>.kernel.started.v1`` at run start.
+
+        Base default — config-level run parameters common to every kernel.
+        Kernels with a richer payload (e.g. ``sandbox_type``) override this;
+        kernels that don't (latent, thermal) get a uniform started event for
+        free instead of emitting nothing.
+        """
+        self._publish(f"{self.BUS_CHANNEL_PREFIX}.kernel.started.v1", {
+            "run_id": self.run_id,
+            "git_commit": _git_commit_short(),
+            "instances": list(self.config.instances),
+            "n_islands": self.config.n_islands,
+            "population_per_island": self.config.population_per_island,
+            "generations": self.config.generations,
+            "plateau_generations": self.config.plateau_generations,
+            "temperature": self.config.temperature,
+            "plateau_hint": self.config.plateau_hint,
+        })
 
     def _publish_candidate(self, candidate: CandidateProgram) -> None:
         """Emit <prefix>.candidate.evaluated.v1 for every scored candidate.
@@ -950,32 +968,87 @@ class FunSearchKernel(abc.ABC):
         })
 
     def _publish_completed(self, programs: list[CandidateProgram]) -> None:
-        pass
+        """Emit ``<prefix>.kernel.completed.v1`` at run end.
+
+        Base default — best-program summary + run stats. Kernels with a richer
+        payload (e.g. domain source code, full history) override this; kernels
+        that don't (latent, thermal) get a uniform completed event for free.
+        """
+        best = programs[0] if programs else None
+        self._publish(f"{self.BUS_CHANNEL_PREFIX}.kernel.completed.v1", {
+            "run_id": self.run_id,
+            "total_generations": self.generation,
+            "stop_reason": self.stop_reason,
+            "llm_requests": self.llm_requests,
+            "best_program": {
+                "id": best.id,
+                "fitness": best.fitness,
+                "island": best.island,
+                "generation": best.generation,
+                "source": best.source,
+            } if best else None,
+        })
 
     def _publish(self, channel: str, data: dict) -> bool:
-        """Write event to bus debug log (best-effort)."""
+        """Publish a CloudEvents-lite event to nervous-bus. Fail-silent.
+
+        The single bus-publish path for every kernel (consolidated from the
+        per-kernel copies). Writes to ``~/.cache/nervous-bus/debug.jsonl``
+        (durable history) first, then best-effort fire-and-forget to the
+        ``nervous`` CLI for zellij/Redis consumers. The CloudEvents ``source``
+        is derived from ``BUS_CHANNEL_PREFIX`` so it matches the per-kernel
+        contract (``/autobench/<prefix>_kernel``); ``type`` is the channel.
+        """
         envelope = {
             "specversion": "1.0",
             "id": uuid.uuid4().urn,
-            "source": f"/autobench/{self.__class__.__name__.lower()}",
+            "source": f"/autobench/{self.BUS_CHANNEL_PREFIX}_kernel",
             "type": channel,
             "datacontenttype": "application/json",
             "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "data": data,
         }
+        payload = json.dumps(envelope)
+
         debug_path = Path.home() / ".cache" / "nervous-bus" / "debug.jsonl"
         debug_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(debug_path, "a") as f:
-                f.write(json.dumps(envelope) + "\n")
-        except Exception:
-            pass
+                f.write(payload + "\n")
+            if self.config.bus_verbose:
+                logger.info("bus: published %s", channel)
+        except Exception as e:
+            logger.debug("bus: write to debug log failed: %s", e)
+
+        # Best-effort nervous CLI for zellij/Redis consumers. Non-blocking
+        # Popen + short wait; any failure is swallowed (the durable record is
+        # already in debug.jsonl, which redis-mirror tails).
+        if self._nervous_bin:
+            try:
+                env = dict(os.environ)
+                env["NBUS_SKIP_VALIDATION"] = "1"
+                env["NERVOUS_NO_ZELLIJ"] = "1"
+                env["NERVOUS_NO_REDIS"] = "1"
+                proc = subprocess.Popen(
+                    [self._nervous_bin, "publish", channel, payload],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=env,
+                )
+                proc.wait(timeout=2)
+            except Exception:
+                pass
+
         return True
 
     def _find_nervous_bin(self) -> str | None:
+        """Locate the ``nervous`` shell SDK — PATH first, then the repo path."""
         import shutil
-        return (shutil.which("nervous") or
-                str(p) if (p := Path.home() / "projects" / "nervous-bus" / "sdk" / "shell" / "nervous").is_file() else None)
+        found = shutil.which("nervous")
+        if found:
+            return found
+        repo = Path.home() / "projects" / "nervous-bus" / "sdk" / "shell" / "nervous"
+        return str(repo) if repo.is_file() else None
 
 
 # ---------------------------------------------------------------------------

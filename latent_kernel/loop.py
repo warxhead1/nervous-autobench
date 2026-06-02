@@ -48,6 +48,7 @@ class LatentKernel(FunSearchKernel):
     """
 
     kernel_name = "latent"
+    BUS_CHANNEL_PREFIX = "latent"
 
     def __init__(self, config: KernelConfig) -> None:
         super().__init__(config)

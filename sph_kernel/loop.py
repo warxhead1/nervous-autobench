@@ -133,63 +133,6 @@ class SPHKernel(FunSearchKernel):
     # Bus publishing — sph.kernel.* channels
     # ------------------------------------------------------------------
 
-    def _find_nervous_bin(self) -> str | None:
-        candidates = [
-            Path(__file__).parent.parent.parent / "sdk" / "shell" / "nervous",
-            Path.home() / "projects" / "nervous-bus" / "sdk" / "shell" / "nervous",
-            Path("/usr/local/bin/nervous"),
-            Path("/usr/bin/nervous"),
-        ]
-        for p in candidates:
-            if p.is_file():
-                return str(p)
-        return None
-
-    def _publish(self, channel: str, data: dict) -> bool:
-        """Write event to bus debug log and optionally the nervous CLI.
-
-        Source is hardcoded to '/autobench/sph_kernel' to match the schema
-        const.
-        """
-        envelope = {
-            "specversion": "1.0",
-            "id": uuid.uuid4().urn,
-            "source": "/autobench/sph_kernel",
-            "type": channel,
-            "datacontenttype": "application/json",
-            "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "data": data,
-        }
-        payload = json.dumps(envelope)
-
-        debug_path = Path.home() / ".cache" / "nervous-bus" / "debug.jsonl"
-        debug_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(debug_path, "a") as f:
-                f.write(payload + "\n")
-            if self.config.bus_verbose:
-                logger.info("bus: published %s", channel)
-        except Exception as e:
-            logger.debug("bus: write to debug log failed: %s", e)
-
-        if self._nervous_bin:
-            try:
-                env = dict(os.environ)
-                env["NBUS_SKIP_VALIDATION"] = "1"
-                env["NERVOUS_NO_ZELLIJ"] = "1"
-                env["NERVOUS_NO_REDIS"] = "1"
-                proc = subprocess.Popen(
-                    [self._nervous_bin, "publish", channel, payload],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=env,
-                )
-                proc.wait(timeout=2)
-            except Exception:
-                pass
-
-        return True
-
     def _publish_started(self) -> None:
         """Emit sph.kernel.started.v1 when the run begins."""
         from ..kernels.base import _git_commit_short

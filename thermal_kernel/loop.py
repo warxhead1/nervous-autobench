@@ -34,6 +34,7 @@ class ThermalKernel(FunSearchKernel):
     """
 
     kernel_name = "thermal"
+    BUS_CHANNEL_PREFIX = "thermal"
 
     def __init__(self, config: KernelConfig) -> None:
         super().__init__(config)

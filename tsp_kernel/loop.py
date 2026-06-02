@@ -205,6 +205,8 @@ def evaluate_island(
 class TSPKernel(FunSearchKernel):
     """FunSearch-style TSP heuristic discovery kernel."""
 
+    BUS_CHANNEL_PREFIX = "tsp"
+
     def __init__(self, config: KernelConfig):
         self.config = config
         self.islands: list[Island] = []
@@ -250,19 +252,6 @@ class TSPKernel(FunSearchKernel):
         # (evaluate_fitness, evaluate_island, island_reset) work for TSP.
         self.problem_instances = self.instances
 
-    def _find_nervous_bin(self) -> str | None:
-        """Search for the nervous CLI in common locations."""
-        candidates = [
-            Path(__file__).parent.parent.parent / "sdk" / "shell" / "nervous",
-            Path.home() / "projects" / "nervous-bus" / "sdk" / "shell" / "nervous",
-            Path("/usr/local/bin/nervous"),
-            Path("/usr/bin/nervous"),
-        ]
-        for p in candidates:
-            if p.is_file():
-                return str(p)
-        return None
-
     # ------------------------------------------------------------------
     # FunSearchKernel abstract method implementations
     # The TSP loop (run/step/initialize) is fully overridden here, so
@@ -297,61 +286,6 @@ class TSPKernel(FunSearchKernel):
     def seed_programs(self, island_id: int, generation: int) -> list[CandidateProgram]:
         """Return deterministic baseline programs for a fresh island."""
         return init_baseline_programs(island_id, generation)
-
-    def _publish(self, channel: str, data: dict) -> bool:
-        """Publish a CloudEvents-lite event to the nervous-bus debug log.
-
-        Writes directly to ~/.cache/nervous-bus/debug.jsonl. This is the primary
-        publish path. Optionally tries the ``nervous`` CLI for zellij/Redis
-        distribution if it can be invoked without blocking.
-
-        Args:
-            channel: Event channel name (e.g. ``tsp.kernel.started.v1``).
-            data: Event payload (becomes the ``data`` field of the envelope).
-
-        Returns:
-            True always (fail-silent for high-frequency use).
-        """
-        envelope = {
-            "specversion": "1.0",
-            "id": uuid.uuid4().urn,
-            "source": "/autobench/tsp_kernel",
-            "type": channel,
-            "datacontenttype": "application/json",
-            "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "data": data,
-        }
-        payload = json.dumps(envelope)
-
-        debug_path = Path.home() / ".cache" / "nervous-bus" / "debug.jsonl"
-        debug_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(debug_path, "a") as f:
-                f.write(payload + "\n")
-            if self.config.bus_verbose:
-                logger.info("bus: published %s", channel)
-        except Exception as e:
-            logger.debug("bus: write to debug log failed: %s", e)
-
-        # Best-effort nervous CLI for zellij/Redis consumers.
-        # Runs non-blocking via Popen; failures are silently ignored.
-        if self._nervous_bin:
-            try:
-                env = dict(os.environ)
-                env["NBUS_SKIP_VALIDATION"] = "1"
-                env["NERVOUS_NO_ZELLIJ"] = "1"
-                env["NERVOUS_NO_REDIS"] = "1"
-                proc = subprocess.Popen(
-                    [self._nervous_bin, "publish", channel, payload],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=env,
-                )
-                proc.wait(timeout=2)
-            except Exception:
-                pass
-
-        return True
 
     def _default_llm_call(self, prompt: str) -> str:
         """Generate a candidate via the LLM. Returns "" on any failure.

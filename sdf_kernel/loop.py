@@ -215,64 +215,6 @@ class SDFKernel(FunSearchKernel):
     # _publish_generation: not overridden — base class handles generation events.
     # ------------------------------------------------------------------
 
-    def _find_nervous_bin(self) -> str | None:
-        candidates = [
-            Path(__file__).parent.parent.parent / "sdk" / "shell" / "nervous",
-            Path.home() / "projects" / "nervous-bus" / "sdk" / "shell" / "nervous",
-            Path("/usr/local/bin/nervous"),
-            Path("/usr/bin/nervous"),
-        ]
-        for p in candidates:
-            if p.is_file():
-                return str(p)
-        return None
-
-    def _publish(self, channel: str, data: dict) -> bool:
-        """Publish to bus debug log and optionally the nervous CLI.
-
-        Source is hardcoded to '/autobench/sdf_kernel' to match the schema
-        const — the base class uses the class name dynamically, which would
-        produce '/autobench/sdfkernel' (no underscore).
-        """
-        envelope = {
-            "specversion": "1.0",
-            "id": uuid.uuid4().urn,
-            "source": "/autobench/sdf_kernel",
-            "type": channel,
-            "datacontenttype": "application/json",
-            "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "data": data,
-        }
-        payload = json.dumps(envelope)
-
-        debug_path = Path.home() / ".cache" / "nervous-bus" / "debug.jsonl"
-        debug_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(debug_path, "a") as f:
-                f.write(payload + "\n")
-            if self.config.bus_verbose:
-                logger.info("bus: published %s", channel)
-        except Exception as e:
-            logger.debug("bus: write to debug log failed: %s", e)
-
-        if self._nervous_bin:
-            try:
-                env = dict(os.environ)
-                env["NBUS_SKIP_VALIDATION"] = "1"
-                env["NERVOUS_NO_ZELLIJ"] = "1"
-                env["NERVOUS_NO_REDIS"] = "1"
-                proc = subprocess.Popen(
-                    [self._nervous_bin, "publish", channel, payload],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=env,
-                )
-                proc.wait(timeout=2)
-            except Exception:
-                pass
-
-        return True
-
     def _render_best_program(self, best: "CandidateProgram", out_path: "Path") -> bool:
         """Render the evolved SDF via in-house CPU sphere tracer (fallback: GLSL probe)."""
         # Prefer the CPU tracer — it works headless with zero VRAM, and takes
