@@ -19,8 +19,8 @@ llm = ["anthropic"]
 gpu = ["torch", "moderngl", "scikit-image"]
 # rsi/simulation.py writes .png plots of the RSI run timeline.
 viz = ["matplotlib"]
-# Test runner + nothing else — keep dev lean.
-dev = ["pytest"]
+# Test runner + per-test timeout guard — keep dev lean.
+dev = ["pytest", "pytest-timeout"]
 
 [project.scripts]
 autobench = "autobench.cli:main"
@@ -61,3 +61,8 @@ packages = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "requires_tools: needs external CLI tools (ast-grep, difft); auto-skipped when absent",
+    "live: needs a live external service (LLM endpoint, nervous-bus/Redis, Firecracker VM)",
+    "integration: end-to-end integration test",
+]
