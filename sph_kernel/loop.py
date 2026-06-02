@@ -192,7 +192,7 @@ class SPHKernel(FunSearchKernel):
 
     def _publish_started(self) -> None:
         """Emit sph.kernel.started.v1 when the run begins."""
-        from ..kernels import _git_commit_short
+        from ..kernels.base import _git_commit_short
         self._publish("sph.kernel.started.v1", {
             "run_id": self.run_id,
             "git_commit": _git_commit_short(),
