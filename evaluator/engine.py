@@ -1,9 +1,9 @@
-"""Evaluation with verdict-level signals for autobench.
+"""The BenchmarkEvaluator engine — runs a harness against a benchmark suite.
 
-Classes:
-    BenchmarkEvaluator — runs harness against benchmark suite
-    emit_verdict(code_output, stderr, runtime, memory) — CE/RE/TLE/MLE/WA/OK
-    score_harness(harness_results[], utility_weights) — U = 0.5·score + 0.25·cost + 0.25·time (SICA formula)
+Split out of the former monolithic ``evaluator.py`` (behavior-preserving).
+The class is moved whole, unchanged. Names it depends on are imported from
+the sibling submodules (``types``, ``judging``) and from autobench's core /
+observability / engine packages.
 """
 
 from __future__ import annotations
@@ -16,297 +16,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .core import HarnessConfig, HarnessResult, RolloutProtocol, Verdict
+from ..core import HarnessConfig, HarnessResult, RolloutProtocol, Verdict
+from ..observability import GENERATED_CODE_TRUNCATE_LEN, AutobenchObservability
+from ..engines.sandbox import ExecutionResult, SandboxedExecutor, compile_and_run, verify_output
 
-
-# nervous-bus-c48 (wire-pop Phase 7): default anonymous-judge ensemble size for
-# every case verdict in the live evaluator loop. Each MiniMax-coding-plan
-# request counts toward the 14250 req / 5h cap, so the default of 5 keeps the
-# usual 20-case × 3-advocate × 5-iter cycle at 1500 judge calls — well under
-# budget — while making judge-variance the dominant signal rather than a
-# single noisy verdict. Override with the AUTOBENCH_JUDGES_PER_CASE env var;
-# n=1 disables the pool entirely (bit-for-bit pre-wire behavior).
-DEFAULT_JUDGES_PER_CASE = 5
-DEFAULT_DISSENT_THRESHOLD = 0.4
-
-# Cap retries for the iterative rollout protocol so a chronically-failing case
-# can't burn the whole iteration budget. Each attempt emits its own
-# case.result.v1 event with attempt=1,2,...,N (nervous-bus-x3os).
-ITERATIVE_MAX_ATTEMPTS = 3
-
-# Fallback per-case cost anchor when harness.budget has no max_cost_dollars.
-# 0.10 USD/case is a conservative ceiling for a single MiniMax/Sonnet call
-# (~10k tokens at current pricing). Used to normalize real worker cost into
-# p_cost ∈ [0, 1] — see _normalize_p_cost (nervous-bus-569q).
-DEFAULT_MAX_COST_PER_CASE_USD = 0.10
-from .observability import GENERATED_CODE_TRUNCATE_LEN, AutobenchObservability
-from .engines.sandbox import ExecutionResult, SandboxedExecutor, compile_and_run, verify_output
-
-
-# Verdict aggregation precedence (worst-wins) for multi-input cases
-# (nervous-bus-uwjh). Mirrors emit_verdict's internal precedence so the
-# per-input loop's aggregate matches a single-shot run when the case has
-# one input. Refactor verdicts (RV/RD/RT) and the shader-only VF verdict
-# are kept out — the python sandbox path never produces them, so they
-# stay terminal-only via _run_shader_case / refactor_verifier.
-_VERDICT_PRECEDENCE = [
-    Verdict.CE,
-    Verdict.RE,
-    Verdict.TLE,
-    Verdict.MLE,
-    Verdict.VF,
-    Verdict.WA,
-    Verdict.OK,
-]
-
-
-def _build_revision_context(prior: HarnessResult) -> str:
-    """Format a Reflexion-style revision prompt suffix from a failed attempt.
-
-    SELF_REVISION (nervous-bus-dils) feeds this string back into generate_fn
-    on the second pass so the worker sees its own execution feedback:
-    verdict, stderr excerpt, observed stdout, expected stdout. Truncated to
-    keep the revision prompt bounded.
-    """
-    md = prior.metadata or {}
-    stderr = (md.get("stderr") or prior.error or "")[:800]
-    stdout = (md.get("stdout") or "")[:400]
-    expected = (md.get("expected_output") or "")[:400]
-    parts = [
-        f"Your prior solution received verdict {prior.verdict.value} (not OK).",
-        f"Stderr:\n{stderr}" if stderr else "Stderr: <empty>",
-        f"Observed stdout:\n{stdout}" if stdout else "Observed stdout: <empty>",
-        f"Expected stdout:\n{expected}" if expected else "",
-        "Produce a corrected solution. Output code only.",
-    ]
-    return "\n\n".join(p for p in parts if p)
-
-
-def _worst_verdict(verdicts: Any) -> Verdict:
-    """Return the worst (highest-precedence) verdict from an iterable."""
-    seen = set(verdicts)
-    if not seen:
-        return Verdict.OK
-    for v in _VERDICT_PRECEDENCE:
-        if v in seen:
-            return v
-    # Unknown verdict — fall back to the first one we saw.
-    return next(iter(seen))
-
-
-# Default SICA utility weights.
-#
-# nervous-bus-isgo: cost term dropped to 0.0 because p_cost is no longer
-# a meaningful signal — dq7l removed all hardcoded $/token tables (MiniMax
-# coding plan bills by requests-per-5h, not dollars). Leaving cost weighted
-# at 0.25 made every aggregate_score include a constant 0.25 baseline
-# (since 1 - 0 = 1, scaled by 0.25), compressing dynamic range from [0,1]
-# to [0.25,1] and deflating noise-floor analysis.
-#
-# Redistribution: 0.5 score / 0.5 time. Request-rate (the real billing
-# unit) lives on RateBudgetGuard, NOT in the utility formula. Historical
-# scores under the old weights are NOT directly comparable; the variance
-# floor at 2026-05-16 must be re-measured under these weights before any
-# new improver gain can be claimed.
-DEFAULT_WEIGHTS = {
-    "score": 0.5,
-    "cost": 0.0,  # isgo: kept for back-compat but contributes nothing.
-    "time": 0.5,
-}
-
-
-@dataclass
-class BenchmarkCase:
-    """A single benchmark test case.
-
-    Attributes:
-        id: Unique identifier for this case.
-        prompt: The problem statement / coding prompt.
-        language: Target language for the solution.
-        expected_output: Expected stdout output (or JSON for structured).
-            Used as the single broadcast expected output when
-            ``expected_outputs`` is empty or len-mismatched against
-            ``test_inputs``.
-        expected_outputs: Optional per-input expected outputs (nervous-bus-tqhd).
-            When non-empty AND ``len(expected_outputs) == len(test_inputs)``,
-            the evaluator pairs ``(test_inputs[i], expected_outputs[i])``,
-            unlocking asymmetric edge tests where different inputs yield
-            different correct outputs. Otherwise falls back to the singular
-            ``expected_output`` for every input (legacy behavior preserved).
-        constraints: Execution constraints (time, memory).
-        starter_code: Optional starter code skeleton.
-        test_inputs: Optional list of inputs to run through the solution.
-        metadata: Arbitrary extra data (difficulty, category, etc.).
-    """
-
-    id: str
-    prompt: str
-    language: str = "python"
-    expected_output: str = ""
-    expected_outputs: list[str] = field(default_factory=list)
-    constraints: dict[str, Any] = field(
-        default_factory=lambda: {
-            "max_time_seconds": 10,
-            "max_memory_mb": 512,
-        }
-    )
-    starter_code: str = ""
-    test_inputs: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
-    shader_artifact_path: str = ""
-    silo_id: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "prompt": self.prompt,
-            "language": self.language,
-            "expected_output": self.expected_output,
-            "expected_outputs": self.expected_outputs,
-            "constraints": self.constraints,
-            "starter_code": self.starter_code,
-            "test_inputs": self.test_inputs,
-            "metadata": self.metadata,
-        }
-
-
-@dataclass
-class BenchmarkResult:
-    """Result of running a full benchmark (all cases).
-
-    Attributes:
-        case_results: Per-case results.
-        aggregate_score: Weighted aggregate score (0.0–1.0).
-        total_latency_ms: Total wall-clock time.
-        verdict_counts: Dict mapping verdict types to counts.
-        metadata: Extra data.
-    """
-
-    case_results: list[HarnessResult] = field(default_factory=list)
-    aggregate_score: float = 0.0
-    total_latency_ms: float = 0.0
-    verdict_counts: dict[str, int] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def pass_rate(self) -> float:
-        if not self.case_results:
-            return 0.0
-        return sum(1 for r in self.case_results if r.is_pass()) / len(self.case_results)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "case_results": [r.to_dict() for r in self.case_results],
-            "aggregate_score": self.aggregate_score,
-            "total_latency_ms": self.total_latency_ms,
-            "verdict_counts": self.verdict_counts,
-            "pass_rate": self.pass_rate(),
-            "metadata": self.metadata,
-        }
-
-
-def _find_last_usage(fn: Any) -> dict[str, Any] | None:
-    """Locate the ``_last_usage`` dict on a worker-like callable.
-
-    MiniMaxWorker stores per-call usage on the instance. Callers commonly
-    wrap the worker in a closure (``def _worker_callable(prompt, cfg): ...``)
-    or a ``functools.partial`` for accounting, which hides instance
-    attributes from a flat ``getattr`` on the outer callable. We probe:
-
-    1. The object itself (worker instance passed directly).
-    2. ``__self__`` (bound method).
-    3. ``func`` (``functools.partial``) — recursively.
-    4. ``__wrapped__`` (``functools.wraps``) — recursively.
-    5. Each free variable in ``__closure__`` (capturing closures).
-
-    First match wins. Returns ``None`` if nothing exposes ``_last_usage``.
-    """
-    seen: set[int] = set()
-
-    def _probe(obj: Any) -> dict[str, Any] | None:
-        if obj is None:
-            return None
-        oid = id(obj)
-        if oid in seen:
-            return None
-        seen.add(oid)
-
-        usage = getattr(obj, "_last_usage", None)
-        if isinstance(usage, dict):
-            return usage
-
-        bound_self = getattr(obj, "__self__", None)
-        if bound_self is not None:
-            found = _probe(bound_self)
-            if found is not None:
-                return found
-
-        partial_func = getattr(obj, "func", None)
-        if callable(partial_func):
-            found = _probe(partial_func)
-            if found is not None:
-                return found
-
-        wrapped = getattr(obj, "__wrapped__", None)
-        if wrapped is not None:
-            found = _probe(wrapped)
-            if found is not None:
-                return found
-
-        closure = getattr(obj, "__closure__", None)
-        if closure:
-            for cell in closure:
-                try:
-                    val = cell.cell_contents
-                except ValueError:
-                    continue
-                found = _probe(val)
-                if found is not None:
-                    return found
-
-        return None
-
-    return _probe(fn)
-
-
-def _normalize_p_cost(usage: dict[str, Any] | None, max_cost_per_case: float) -> float:
-    """Convert real per-call worker cost into a normalized p_cost ∈ [0, 1].
-
-    Formula (nervous-bus-569q):
-        p_cost = min(1.0, cost_usd / max_cost_per_case)
-
-    where ``cost_usd`` comes from the worker's ``_last_usage`` dict and
-    ``max_cost_per_case`` is ``harness.budget["max_cost_dollars"] / num_cases``
-    (computed in ``_run_inner``), falling back to
-    ``DEFAULT_MAX_COST_PER_CASE_USD`` when the budget is missing or zero.
-
-    Interpretation: higher cost → higher p_cost → lower utility (the SICA
-    formula inverts cost as ``1 - avg_cost`` in ``score_harness``). When
-    usage is missing (no worker, stub generate_fn), we return 0.0 rather
-    than the legacy 0.5 stub — 0.0 means "this run consumed no measurable
-    spend", which is accurate for offline/cached evaluations and removes
-    the 0.0625-of-noise contribution Angela's audit flagged.
-    """
-    if not isinstance(usage, dict):
-        return 0.0
-    # Match the canonical keys produced by worker_agent._update_last_usage
-    # plus the alternate keys handled in iteration_summary.normalize_worker_usage.
-    raw_cost = (
-        usage.get("cost_usd")
-        if usage.get("cost_usd") is not None
-        else usage.get("total_cost_usd")
-        if usage.get("total_cost_usd") is not None
-        else usage.get("cost")
-        if usage.get("cost") is not None
-        else usage.get("total_cost", 0.0)
-    )
-    try:
-        cost = float(raw_cost or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-    if cost <= 0.0:
-        return 0.0
-    anchor = max_cost_per_case if max_cost_per_case > 0 else DEFAULT_MAX_COST_PER_CASE_USD
-    return max(0.0, min(1.0, cost / anchor))
+from .types import (
+    DEFAULT_DISSENT_THRESHOLD,
+    DEFAULT_JUDGES_PER_CASE,
+    DEFAULT_MAX_COST_PER_CASE_USD,
+    DEFAULT_WEIGHTS,
+    ITERATIVE_MAX_ATTEMPTS,
+    BenchmarkCase,
+    BenchmarkResult,
+    _build_revision_context,
+    _find_last_usage,
+    _normalize_p_cost,
+    _worst_verdict,
+)
+from .judging import JudgeVote, JudgingPool
 
 
 class BenchmarkEvaluator:
@@ -589,7 +316,7 @@ class BenchmarkEvaluator:
         """Lazily create a publisher for the given harness version."""
         if self._publisher is None:
             try:
-                from .bus.signal_bus import AutobenchResultPublisher
+                from ..bus.signal_bus import AutobenchResultPublisher
             except Exception:
                 return None
             self._publisher = AutobenchResultPublisher(
@@ -1189,7 +916,7 @@ class BenchmarkEvaluator:
             verdict   ← OK / VF / WA / CE / RE / TLE (from ShaderExecutor)
             latency_ms← render_time_ms
         """
-        from .engines.shader_executor import ShaderExecutor  # local import: optional dep
+        from ..engines.shader_executor import ShaderExecutor  # local import: optional dep
 
         viewport_list = case.constraints.get("viewport", [512, 512])
         viewport = (int(viewport_list[0]), int(viewport_list[1]))
@@ -1457,188 +1184,3 @@ class BenchmarkEvaluator:
         utility = w_score * avg_score + w_cost * (1.0 - avg_cost) + w_time * (1.0 - avg_time)
 
         return max(0.0, min(1.0, utility))
-
-
-def emit_verdict(
-    code_output: str,
-    stderr: str,
-    runtime_ms: float,
-    memory_mb: float,
-    **kwargs,
-) -> Verdict:
-    """Standalone emit_verdict — delegates to BenchmarkEvaluator.emit_verdict."""
-    evaluator = BenchmarkEvaluator()
-    return evaluator.emit_verdict(
-        code_output=code_output,
-        stderr=stderr,
-        runtime_ms=runtime_ms,
-        memory_mb=memory_mb,
-        **kwargs,
-    )
-
-
-def score_harness(
-    harness_results: list[HarnessResult],
-    utility_weights: dict[str, float] | None = None,
-) -> float:
-    """Standalone score_harness — delegates to BenchmarkEvaluator.score_harness."""
-    return BenchmarkEvaluator.score_harness(harness_results, utility_weights)
-
-
-# ---------------------------------------------------------------------------
-# Collective LLM-as-judge (gap #10)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class JudgeVote:
-    """A single judge's assessment of a worker output."""
-
-    judge_id: str
-    verdict: Verdict
-    p_score: float
-    p_cost: float
-    p_time: float
-    reasoning: str = ""
-
-
-@dataclass
-class JudgingPool:
-    """Collective LLM-as-judge with anonymous aggregation.
-
-    Assigns each worker output to N independent judges. Each judge scores
-    in isolation — no cross-judge visibility (anonymous protocol). Aggregated
-    verdict feeds into BenchmarkEvaluator.score_harness().
-
-    Use JudgingPool when the judge variance dominates the measurement noise.
-    Calibrate ensemble size by running noise_floor.py with 3, 5, 7 judges and
-    finding where variance plateaus.
-
-    Args:
-        judges: List of judge client factories. Each factory is a callable
-            that takes (prompt: str, context: dict) and returns a dict with
-            keys: verdict (str), p_score (float), p_cost (float),
-            p_time (float), reasoning (str).
-        ensemble_size: How many judges to use. Defaults to len(judges).
-        aggregation: "majority" (verdict) + mean (continuous) or
-            "sica_weighted" (weighted by inverse variance).
-    """
-
-    judges: list[Any] = field(default_factory=list)
-    ensemble_size: int | None = None
-    aggregation: str = "majority"
-
-    def __post_init__(self) -> None:
-        if not self.judges:
-            raise ValueError("JudgingPool requires at least one judge")
-        self._size = self.ensemble_size or len(self.judges)
-
-    def _score_single(
-        self,
-        judge_factory: Any,
-        prompt: str,
-        context: dict[str, Any],
-    ) -> JudgeVote | None:
-        """Ask one judge to score a single worker output."""
-        try:
-            result = judge_factory(prompt=prompt, context=context)
-            if not isinstance(result, dict):
-                return None
-            verdict_str = result.get("verdict", "OK")
-            try:
-                verdict = Verdict(verdict_str)
-            except ValueError:
-                verdict = Verdict.OK
-            return JudgeVote(
-                judge_id=result.get("judge_id", "unknown"),
-                verdict=verdict,
-                p_score=float(result.get("p_score", 0.5)),
-                p_cost=float(result.get("p_cost", 0.5)),
-                p_time=float(result.get("p_time", 0.5)),
-                reasoning=result.get("reasoning", ""),
-            )
-        except Exception:
-            return None
-
-    def _aggregate_votes(self, votes: list[JudgeVote]) -> tuple[Verdict, float, float, float]:
-        """Aggregate a list of JudgeVote objects into a single verdict + scores."""
-        if not votes:
-            return Verdict.OK, 0.0, 0.5, 0.5
-
-        # Majority vote for verdict
-        verdict_counts: dict[Verdict, int] = {}
-        for v in votes:
-            verdict_counts[v.verdict] = verdict_counts.get(v.verdict, 0) + 1
-        consensus_verdict = max(verdict_counts, key=verdict_counts.get)
-
-        # Mean for continuous scores
-        avg_p_score = sum(v.p_score for v in votes) / len(votes)
-        avg_p_cost = sum(v.p_cost for v in votes) / len(votes)
-        avg_p_time = sum(v.p_time for v in votes) / len(votes)
-
-        return consensus_verdict, avg_p_score, avg_p_cost, avg_p_time
-
-    def evaluate(
-        self,
-        prompt: str,
-        context: dict[str, Any],
-    ) -> tuple[Verdict, float, float, float, list[JudgeVote]]:
-        """Evaluate a worker output using the full judging pool.
-
-        Args:
-            prompt: The evaluation prompt (e.g. "Score this code: ...")
-            context: Arbitrary context passed to each judge factory
-                    (e.g. {"worker_output": "...", "expected_output": "..."})
-
-        Returns:
-            Tuple of (verdict, p_score, p_cost, p_time, all_votes).
-            The aggregated scores feed into score_harness().
-        """
-        active_judges = self.judges[: self._size]
-        votes: list[JudgeVote] = []
-
-        for judge_factory in active_judges:
-            vote = self._score_single(judge_factory, prompt, context)
-            if vote is not None:
-                votes.append(vote)
-
-        if not votes:
-            return Verdict.OK, 0.0, 0.5, 0.5, []
-
-        verdict, p_score, p_cost, p_time = self._aggregate_votes(votes)
-        return verdict, p_score, p_cost, p_time, votes
-
-    def calibrate_ensemble_size(
-        self,
-        calibration_cases: list[dict[str, Any]],
-        judge_factory: Any,
-    ) -> dict[int, float]:
-        """Measure variance as a function of ensemble size.
-
-        Args:
-            calibration_cases: List of dicts with "prompt" and "context" keys.
-            judge_factory: A single judge factory to sample from.
-
-        Returns:
-            Dict mapping ensemble_size -> variance (lower is better).
-            Run with 3, 5, 7 judges over the same calibration cases to find
-            where variance plateaus.
-        """
-        results: dict[int, list[float]] = {}
-        for size in [1, 3, 5, 7]:
-            scores: list[float] = []
-            for case in calibration_cases:
-                local_votes: list[JudgeVote] = []
-                for _ in range(size):
-                    vote = self._score_single(judge_factory, case["prompt"], case["context"])
-                    if vote is not None:
-                        local_votes.append(vote)
-                if local_votes:
-                    _, p_score, _, _ = self._aggregate_votes(local_votes)
-                    scores.append(p_score)
-
-            if scores:
-                import statistics
-                results[size] = statistics.variance(scores) if len(scores) > 1 else 0.0
-
-        return results
