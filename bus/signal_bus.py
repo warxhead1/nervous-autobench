@@ -109,6 +109,23 @@ class AutobenchResultPublisher:
         except Exception:
             return False
 
+    def _try_redis_xadd(self, channel: str, payload: str) -> bool:
+        """Publish directly to nbus:all Redis stream — works outside zellij sessions."""
+        try:
+            import subprocess as _sp
+            result = _sp.run(
+                ["redis-cli", "--no-auth-warning", "XADD", "nbus:all", "*",
+                 "type", channel,
+                 "source", "autobench",
+                 "specversion", "1.0",
+                 "data", payload],
+                timeout=2,
+                capture_output=True,
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
     def _write_debug(self, payload: str) -> None:
         """Append payload to the debug fallback file."""
         _ensure_debug_dir()
@@ -122,7 +139,7 @@ class AutobenchResultPublisher:
             result: A HarnessResult instance.
 
         Returns:
-            True if published successfully (via zellij or debug fallback).
+            True if published successfully (via zellij, Redis, or debug fallback).
         """
         event = self._build_event(result)
         payload = json.dumps(event)
@@ -130,7 +147,11 @@ class AutobenchResultPublisher:
         if self._try_zellij_pipe(payload):
             return True
 
-        # Fallback: write to debug file
+        # Secondary fallback: Redis XADD (works outside zellij sessions)
+        if self._try_redis_xadd("autobench.result.v1", payload):
+            return True
+
+        # Last resort: write to debug file
         self._write_debug(payload)
         return True  # Still returns True since we wrote to fallback
 
