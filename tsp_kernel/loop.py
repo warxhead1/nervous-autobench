@@ -607,7 +607,11 @@ class TSPKernel(FunSearchKernel):
         self._run_start = time.time()
         self._plateau_count = 0
         self._island_plateau_counts = {}
-        self._last_published_best_fitness = 0.0
+        # Seed from the post-initialize global best, NOT 0.0, so the first
+        # generation's best_fitness_improved only fires for genuine improvement
+        # over the seed — not a phantom "discovery" whose delta is the entire
+        # seed baseline. Mirrors the base-class fix; TSP overrides run().
+        self._last_published_best_fitness = self.global_best_fitness()
         self._island_age = {}
         self.stop_reason = ""
 
