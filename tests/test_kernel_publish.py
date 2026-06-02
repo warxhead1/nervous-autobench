@@ -12,6 +12,7 @@ Marked not-live: no network, no sandbox, no real nervous CLI.
 from __future__ import annotations
 
 import json
+import os
 from types import SimpleNamespace
 from unittest import mock
 
@@ -79,15 +80,24 @@ def test_publish_invokes_nervous_cli_when_bin_present(tmp_path):
     k = _make(nervous_bin="/fake/nervous")
     with mock.patch("autobench.kernels.base.Path.home", return_value=tmp_path), \
          mock.patch("autobench.kernels.base.subprocess.Popen") as popen:
-        popen.return_value.wait.return_value = 0
+        popen.return_value.communicate.return_value = (b"", b"")
         k._publish("stub.generation.completed.v1", {"g": 1})
     assert popen.called
+    # --json pass-through: the already-built envelope is fed on stdin verbatim,
+    # NOT passed as an argv payload (which the non-json path would re-wrap).
     argv = popen.call_args[0][0]
-    assert argv[:3] == ["/fake/nervous", "publish", "stub.generation.completed.v1"]
-    assert json.loads(argv[3])["type"] == "stub.generation.completed.v1"
-    # env disables nested zellij/redis + skips double-validation
+    assert argv == ["/fake/nervous", "publish", "--json"]
+    stdin_payload = popen.return_value.communicate.call_args[0][0]
+    sent = json.loads(stdin_payload)
+    assert sent["type"] == "stub.generation.completed.v1"
+    assert sent["source"] == "/autobench/stub_kernel"  # not re-sourced from CWD
+    assert sent["data"] == {"g": 1}
+    # Zellij fan-out off; debug.jsonl write redirected so nervous can't double-write;
+    # Redis left ENABLED (NO_REDIS not forced) — this is the only Redis path.
     env = popen.call_args.kwargs["env"]
-    assert env["NBUS_SKIP_VALIDATION"] == "1"
+    assert env["NERVOUS_NO_ZELLIJ"] == "1"
+    assert env["NERVOUS_DEBUG_LOG"] == os.devnull
+    assert env.get("NERVOUS_NO_REDIS") != "1"
 
 
 def test_publish_skips_cli_when_no_bin(tmp_path):

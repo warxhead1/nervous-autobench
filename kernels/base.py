@@ -702,7 +702,13 @@ class FunSearchKernel(abc.ABC):
         self._plateau_count = 0
         self._island_plateau_counts = {}
         self._island_prev_best = {}
-        self._last_published_best_fitness = 0.0
+        # Seed from the post-initialize global best, NOT 0.0: the islands are
+        # already seeded+evaluated by initialize(), so starting the watermark at
+        # 0 would make the first generation's best_fitness_improved fire with a
+        # delta equal to the entire seed fitness — a phantom "discovery" that is
+        # really just the seed baseline. Measuring from the seed means the event
+        # only fires for genuine improvement over it.
+        self._last_published_best_fitness = self.global_best_fitness()
         self._island_age = {}
         self.stop_reason = ""
 
@@ -1022,24 +1028,35 @@ class FunSearchKernel(abc.ABC):
         except Exception as e:
             logger.debug("bus: write to debug log failed: %s", e)
 
-        # Best-effort nervous CLI for zellij/Redis consumers. Non-blocking
-        # Popen + short wait; any failure is swallowed (the durable record is
-        # already in debug.jsonl, which redis-mirror tails).
+        # Best-effort live delivery to Redis Streams via the shell SDK's
+        # --json pass-through. We feed the ALREADY-BUILT envelope on stdin so
+        # nervous forwards it verbatim — the non-json path would re-wrap the
+        # envelope as the `data` field of a fresh envelope (double-wrap, with a
+        # bogus source from CWD). NERVOUS_DEBUG_LOG=/dev/null prevents a second
+        # debug.jsonl write (the durable record above is the single source of
+        # truth). Redis is left ENABLED: kernel channels are not in
+        # redis-mirror's tail list (mirror_all=false), so this direct XADD is
+        # the only Redis path — no duplicate, despite redis-mirror having no
+        # $id dedup. Zellij pane fan-out stays off to avoid a per-event
+        # subprocess in tight evolution loops.
         if self._nervous_bin:
             try:
                 env = dict(os.environ)
-                env["NBUS_SKIP_VALIDATION"] = "1"
                 env["NERVOUS_NO_ZELLIJ"] = "1"
-                env["NERVOUS_NO_REDIS"] = "1"
+                env["NERVOUS_DEBUG_LOG"] = os.devnull
                 proc = subprocess.Popen(
-                    [self._nervous_bin, "publish", channel, payload],
+                    [self._nervous_bin, "publish", "--json"],
+                    stdin=subprocess.PIPE,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     env=env,
                 )
-                proc.wait(timeout=2)
+                proc.communicate(payload.encode(), timeout=3)
             except Exception:
-                pass
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
         return True
 
