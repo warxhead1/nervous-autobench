@@ -779,7 +779,7 @@ This produces a Pareto surface rather than a single optimal point.
 - Session state: `session_state.py`
 - Role predicate: `role_predicate.py`
 - Tests: `role_predicate_test.py`
-- Deer-flow: `~/projects/deer-flow/` (external to nervous-bus)
+- Deer-flow: external consumer (separate repo)
 - Adapter: `nervous-bus/sdk/python/nbus.py` → `deer obs bus`
 
 ### Phase 4: Production

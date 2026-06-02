@@ -9,5 +9,11 @@ data/
 *.log
 *.tmp
 _plans/
+_checkpoints/
+.claude/
+agent-*
 .env
 *.egg-info/
+# Generated plots / run artifacts
+rsi_convergence_plots.png
+**/rsi_convergence_plots.png

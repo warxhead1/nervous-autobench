@@ -233,4 +233,4 @@ What makes AutoBench "agentic" vs traditional static benchmarks:
 
 - [AutoBench (autobench.org)](https://autobench.org) — leaderboard, methodology
 - [AutoBench Leaderboard on HuggingFace Spaces](https://huggingface.co/spaces/AutoBench-Leaderboard/AutoBench-Leaderboard)
-- Local autobench codebase: `/home/eric/projects/nervous-bus/autobench/` — `core.py`, `evaluator.py`, `sandbox.py`, `research/sandbox_environments.md`
+- This repository — `core.py`, `evaluator.py`, `engines/sandbox.py`, `research/sandbox_environments.md`
