@@ -546,6 +546,11 @@ class TSPKernel(FunSearchKernel):
                     "age_since_last_reset": self._island_age.get(island.id, 0),
                 })
 
+            # Coalesced low-freq rollup (spec §2). Base step() emits this after
+            # the island-health loop; TSP overrides step() without super(), so it
+            # must be duplicated here or no snapshot ever fires for tsp.
+            self._publish_snapshot(best, self.history[-1])
+
             if self.generation % 5 == 0 and self.config.max_requests:
                 gen_est = max(1, self.generation)
                 rate = self.llm_requests / gen_est

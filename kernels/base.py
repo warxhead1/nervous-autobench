@@ -1138,9 +1138,11 @@ class FunSearchKernel(abc.ABC):
         unified ``kernel.*`` prefix with a ``domain`` discriminator (spec §1).
         Writes to ``~/.cache/nervous-bus/debug.jsonl`` (durable history) first,
         then best-effort fire-and-forget to the ``nervous`` CLI for zellij/Redis
-        consumers. The CloudEvents ``source`` is derived from ``BUS_CHANNEL_PREFIX``
-        so it matches the per-kernel contract (``/autobench/<prefix>_kernel``);
-        ``type`` is the (unified) channel.
+        consumers. The CloudEvents ``source`` is ``/autobench/kernel`` for the
+        unified ``kernel.*`` family (domain lives in ``data.domain``),
+        ``/autobench/pulse`` for the snapshot, and the legacy
+        ``/autobench/<prefix>_kernel`` for the remaining per-kernel ``autobench.*``
+        channels; ``type`` is the (unified) channel.
 
         Throttle/mute (spec §3–§4):
         - ``AUTOBENCH_OBS_DISABLE_PIPE`` / ``AUTOBENCH_KERNEL_DISABLE_PIPE``
@@ -1154,9 +1156,16 @@ class FunSearchKernel(abc.ABC):
         # callers that bypass __init__ (e.g. unit tests via __new__).
         if channel.startswith("kernel.") or channel == "autobench.island.health.v1":
             self._snapshot_event_count = getattr(self, "_snapshot_event_count", 0) + 1
-        # The coalesced pulse snapshot is its own producer surface (spec §2).
-        source = ("/autobench/pulse" if channel == "pulse.kernel.snapshot.v1"
-                  else f"/autobench/{self.BUS_CHANNEL_PREFIX}_kernel")
+        # Source URI per channel family: unified kernel.* collapses to a single
+        # domain-agnostic /autobench/kernel (domain is in data.domain, matching
+        # the schema's `source` const); the snapshot has its own surface; legacy
+        # per-kernel autobench.* keep the historical /autobench/<prefix>_kernel.
+        if channel == "pulse.kernel.snapshot.v1":
+            source = "/autobench/pulse"
+        elif channel.startswith("kernel."):
+            source = "/autobench/kernel"
+        else:
+            source = f"/autobench/{self.BUS_CHANNEL_PREFIX}_kernel"
         envelope = {
             "specversion": "1.0",
             "id": uuid.uuid4().urn,
