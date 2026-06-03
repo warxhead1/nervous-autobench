@@ -50,6 +50,23 @@ logger = logging.getLogger(__name__)
 
 KERNEL_REGISTRY: dict[str, type["FunSearchKernel"]] = {}
 
+# ---------------------------------------------------------------------------
+# Unified kernel channel collapse (72 → 9) — see KERNEL_CONTRACT_SPEC §1.
+#
+# The 8 per-domain kernel families are byte-identical in shape. Instead of
+# emitting ``<domain>.candidate.evaluated.v1`` we emit a single
+# ``kernel.candidate.evaluated.v1`` and add a required ``domain`` discriminator
+# to ``data``. The rewrite happens centrally in ``_publish`` so EVERY call site
+# (base + subclass overrides that still pass ``"<domain>.event.v1"`` literals)
+# is unified without touching each literal.
+# ---------------------------------------------------------------------------
+
+# Verbatim spec order — the wire enum for the ``domain`` field.
+KERNEL_DOMAINS: tuple[str, ...] = (
+    "sph", "sdf", "noise", "phase", "terrain", "thermal", "latent", "tsp",
+)
+_KERNEL_DOMAIN_SET = frozenset(KERNEL_DOMAINS)
+
 
 def register_kernel(name: str):
     """Class decorator: register a FunSearchKernel subclass under ``name``.
@@ -301,6 +318,30 @@ class FunSearchKernel(abc.ABC):
         # Cross-cutting bus event state
         self._last_published_best_fitness: float = 0.0
         self._island_age: dict[int, int] = {}
+
+        # ---- unified-emit / throttle state (KERNEL_CONTRACT_SPEC §2–§4) ----
+        # Disable knob: honour the SAME env var observability/core.py uses so
+        # "disable obs" actually quiets the kernel firehose too. A dedicated
+        # AUTOBENCH_KERNEL_DISABLE_PIPE is also honoured for granular control.
+        self._pipe_disabled: bool = (
+            os.environ.get("AUTOBENCH_OBS_DISABLE_PIPE", "").lower() in {"1", "true", "yes"}
+            or os.environ.get("AUTOBENCH_KERNEL_DISABLE_PIPE", "").lower() in {"1", "true", "yes"}
+        )
+        # Sampling knob for the HIGHEST-frequency channels (candidate.evaluated,
+        # island.health). N=1 (default) emits everything → behaviour unchanged.
+        # N>1 forwards only every Nth event to the live bus (debug.jsonl still
+        # records all). Safe to enable because pulse.kernel.snapshot.v1 is the
+        # durable low-freq summary.
+        try:
+            self._sample_n: int = max(1, int(os.environ.get("AUTOBENCH_KERNEL_SAMPLE_N", "1")))
+        except ValueError:
+            self._sample_n = 1
+        self._sample_counters: dict[str, int] = {}
+        # Coalesced snapshot state — at most once per generation / per window.
+        self._snapshot_last_emit: float = 0.0
+        self._snapshot_min_interval_s: float = 1.0  # rate-limit floor (1–2s)
+        self._snapshot_event_count: int = 0
+        self._snapshot_window_start: float = time.time()
 
     # ------------------------------------------------------------------
     # Diversity helpers
@@ -651,6 +692,10 @@ class FunSearchKernel(abc.ABC):
                     "age_since_last_reset": self._island_age.get(island.id, 0),
                 })
 
+            # Coalesced low-freq rollup for phones/TUIs (spec §2). Rate-limited
+            # internally to at most once/gen AND >= snapshot_min_interval_s.
+            self._publish_snapshot(best, entry)
+
             # Budget gauge every 5 generations
             if self.generation % 5 == 0 and self.config.max_requests:
                 gen_est = max(1, self.generation)
@@ -934,6 +979,56 @@ class FunSearchKernel(abc.ABC):
             "island_reset_fired": stats.get("island_reset_fired", False),
         })
 
+    def _publish_snapshot(self, best: CandidateProgram, stats: dict) -> None:
+        """Emit ``pulse.kernel.snapshot.v1`` — coalesced low-freq rollup (spec §2).
+
+        At most once per generation AND no more often than every
+        ``self._snapshot_min_interval_s`` seconds (1–2s, whichever is slower).
+        Carries enough to drive an island view WITHOUT the per-candidate
+        firehose, so phones/TUIs prefer it. ``event_count`` reports how many
+        raw events were coalesced into this snapshot; ``window_ms`` the span.
+        """
+        now = time.time()
+        # _snapshot_event_count is incremented in _publish() for every raw
+        # kernel event since the last snapshot — true firehose volume coalesced.
+        if (now - self._snapshot_last_emit) < self._snapshot_min_interval_s:
+            return
+
+        islands_payload = []
+        for island in self.islands:
+            if self._island_plateau_counts.get(island.id, 0) >= 1:
+                status = "plateau"
+            elif self._island_age.get(island.id, 1) == 0:
+                status = "reset"
+            else:
+                status = "active"
+            islands_payload.append({
+                "island_id": island.id,
+                "best_fitness": (island.best_program.fitness
+                                 if island.best_program else 0.0),
+                "status": status,
+            })
+
+        window_ms = int((now - self._snapshot_window_start) * 1000)
+        self._publish("pulse.kernel.snapshot.v1", {
+            "domain": self.BUS_CHANNEL_PREFIX,
+            "run_id": self.run_id,
+            "generation": stats["generation"],
+            "best_fitness": stats["best_fitness"],
+            "mean_fitness": stats["mean_pop_fitness"],
+            "islands": islands_payload,
+            "budget": {
+                "requests_used": self.llm_requests,
+                "requests_cap": self.config.max_requests or 0,
+            },
+            "plateau": self._plateau_count > 0,
+            "window_ms": window_ms,
+            "event_count": self._snapshot_event_count,
+        })
+        self._snapshot_last_emit = now
+        self._snapshot_window_start = now
+        self._snapshot_event_count = 0
+
     def _publish_island_reset(self, n_culled: int, pre_best: float) -> None:
         """Emit <prefix>.island_reset.v1 when plateau culling fires."""
         prefix = self.BUS_CHANNEL_PREFIX
@@ -997,20 +1092,72 @@ class FunSearchKernel(abc.ABC):
             } if best else None,
         })
 
+    def _unify_kernel_channel(self, channel: str, data: dict) -> tuple[str, dict]:
+        """Collapse ``<domain>.<event>.v1`` → ``kernel.<event>.v1`` (spec §1).
+
+        If ``channel`` starts with one of the 8 kernel domains, rewrite the
+        leading segment to ``kernel.`` and inject a required ``domain``
+        discriminator into ``data`` (the rest of the payload is byte-identical).
+        Non-kernel channels (autobench.*, pulse.*, …) pass through untouched.
+        Returns ``(new_channel, new_data)``.
+        """
+        head, sep, rest = channel.partition(".")
+        if sep and head in _KERNEL_DOMAIN_SET:
+            new_channel = f"kernel.{rest}"
+            if data.get("domain") != head:
+                data = {"domain": head, **data}
+            return new_channel, data
+        return channel, data
+
+    def _should_sample(self, channel: str) -> bool:
+        """Env-gated sampling for the highest-frequency live channels.
+
+        Returns True if this event should be forwarded to the LIVE bus. The
+        durable debug.jsonl write is unaffected (always recorded). Defaults to
+        N=1 (emit everything). Only candidate.evaluated + island.health are
+        sampled; lifecycle/summary events are always forwarded.
+        """
+        if getattr(self, "_sample_n", 1) <= 1:
+            return True
+        sampled = ("kernel.candidate.evaluated.v1", "autobench.island.health.v1")
+        if channel not in sampled:
+            return True
+        counters = self.__dict__.setdefault("_sample_counters", {})
+        n = counters.get(channel, 0) + 1
+        counters[channel] = n
+        return (n % self._sample_n) == 0
+
     def _publish(self, channel: str, data: dict) -> bool:
         """Publish a CloudEvents-lite event to nervous-bus. Fail-silent.
 
         The single bus-publish path for every kernel (consolidated from the
-        per-kernel copies). Writes to ``~/.cache/nervous-bus/debug.jsonl``
-        (durable history) first, then best-effort fire-and-forget to the
-        ``nervous`` CLI for zellij/Redis consumers. The CloudEvents ``source``
-        is derived from ``BUS_CHANNEL_PREFIX`` so it matches the per-kernel
-        contract (``/autobench/<prefix>_kernel``); ``type`` is the channel.
+        per-kernel copies). Per-domain kernel channels are collapsed to the
+        unified ``kernel.*`` prefix with a ``domain`` discriminator (spec §1).
+        Writes to ``~/.cache/nervous-bus/debug.jsonl`` (durable history) first,
+        then best-effort fire-and-forget to the ``nervous`` CLI for zellij/Redis
+        consumers. The CloudEvents ``source`` is derived from ``BUS_CHANNEL_PREFIX``
+        so it matches the per-kernel contract (``/autobench/<prefix>_kernel``);
+        ``type`` is the (unified) channel.
+
+        Throttle/mute (spec §3–§4):
+        - ``AUTOBENCH_OBS_DISABLE_PIPE`` / ``AUTOBENCH_KERNEL_DISABLE_PIPE``
+          suppress the live fork entirely (debug.jsonl still records).
+        - ``AUTOBENCH_KERNEL_SAMPLE_N`` (default 1) forwards only every Nth
+          high-frequency event to the live bus.
         """
+        channel, data = self._unify_kernel_channel(channel, data)
+        # Tally raw kernel events for the next snapshot's event_count rollup
+        # (exclude the snapshot itself to avoid self-counting). getattr guards
+        # callers that bypass __init__ (e.g. unit tests via __new__).
+        if channel.startswith("kernel.") or channel == "autobench.island.health.v1":
+            self._snapshot_event_count = getattr(self, "_snapshot_event_count", 0) + 1
+        # The coalesced pulse snapshot is its own producer surface (spec §2).
+        source = ("/autobench/pulse" if channel == "pulse.kernel.snapshot.v1"
+                  else f"/autobench/{self.BUS_CHANNEL_PREFIX}_kernel")
         envelope = {
             "specversion": "1.0",
             "id": uuid.uuid4().urn,
-            "source": f"/autobench/{self.BUS_CHANNEL_PREFIX}_kernel",
+            "source": source,
             "type": channel,
             "datacontenttype": "application/json",
             "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -1027,6 +1174,13 @@ class FunSearchKernel(abc.ABC):
                 logger.info("bus: published %s", channel)
         except Exception as e:
             logger.debug("bus: write to debug log failed: %s", e)
+
+        # Mute knob: skip the live fork entirely (durable record above stands).
+        if getattr(self, "_pipe_disabled", False):
+            return True
+        # Sampling knob: drop high-frequency events from the live bus only.
+        if getattr(self, "_sample_n", 1) > 1 and not self._should_sample(channel):
+            return True
 
         # Best-effort live delivery to Redis Streams via the shell SDK's
         # --json pass-through. We feed the ALREADY-BUILT envelope on stdin so
