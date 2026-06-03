@@ -45,6 +45,7 @@ for _kernel_pkg in (
     "autobench.terrain_kernel",
     "autobench.thermal_kernel",
     "autobench.noise_kernel",
+    "autobench.svdag_beauty_kernel",
 ):
     try:
         __import__(_kernel_pkg)

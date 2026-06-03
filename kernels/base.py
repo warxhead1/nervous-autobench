@@ -64,6 +64,7 @@ KERNEL_REGISTRY: dict[str, type["FunSearchKernel"]] = {}
 # Verbatim spec order — the wire enum for the ``domain`` field.
 KERNEL_DOMAINS: tuple[str, ...] = (
     "sph", "sdf", "noise", "phase", "terrain", "thermal", "latent", "tsp",
+    "svdag",
 )
 _KERNEL_DOMAIN_SET = frozenset(KERNEL_DOMAINS)
 
@@ -318,6 +319,12 @@ class FunSearchKernel(abc.ABC):
         # Cross-cutting bus event state
         self._last_published_best_fitness: float = 0.0
         self._island_age: dict[int, int] = {}
+        # Lineage of global-best breakthroughs (gen, id, island, fitness, code),
+        # captured each time the global best improves. Consumed by result
+        # compositors to render a cross-generation "how it evolved" filmstrip.
+        # The bus only carries metrics (not code), so this is the only faithful
+        # source for per-breakthrough code; kept generic for all kernels.
+        self._lineage: list[dict] = []
 
         # ---- unified-emit / throttle state (KERNEL_CONTRACT_SPEC §2–§4) ----
         # Disable knob: honour the SAME env var observability/core.py uses so
@@ -721,6 +728,15 @@ class FunSearchKernel(abc.ABC):
                     "best_island": best.island,
                 })
                 self._last_published_best_fitness = best.fitness
+                # Capture the breakthrough's code for cross-generation lineage
+                # rendering (the bus carries metrics only, never code).
+                self._lineage.append({
+                    "generation": self.generation,
+                    "program_id": best.id,
+                    "island": best.island,
+                    "fitness": round(best.fitness, 6),
+                    "code": best.code,
+                })
 
         self.generation += 1
 
