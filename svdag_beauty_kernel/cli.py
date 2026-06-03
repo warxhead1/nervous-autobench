@@ -175,6 +175,63 @@ def cmd_showcase(args) -> int:
     return 0
 
 
+def cmd_lineage(args) -> int:
+    """Render the champion's cross-generation breakthrough filmstrip (gen0 → champion).
+
+    Reads the ``lineage`` recorded per global-best improvement (code + gen + fitness)
+    and stitches a left-to-right strip showing how the evolved terrain actually
+    came to be — the 'how the procedure turned out' view, not run spam.
+    """
+    import json
+    import math
+    from .render import render_occupancy, sample_occupancy
+    from PIL import Image, ImageDraw
+
+    r = json.load(open(args.results))
+    lineage = r.get("lineage") or []
+    if not lineage:
+        print(f"{RED}no lineage in {args.results} (run was recorded before lineage capture){RESET}")
+        return 1
+    # Optionally thin to a max number of frames, keeping first + last + even spread.
+    if args.max_frames and len(lineage) > args.max_frames:
+        idx = sorted({0, len(lineage) - 1, *(round(i * (len(lineage) - 1) / (args.max_frames - 1))
+                                              for i in range(args.max_frames))})
+        lineage = [lineage[i] for i in idx]
+
+    ex = ensure_executor(allow_unsandboxed=args.allow_unsandboxed)
+    tw, th = 300, 240
+    tiles = []
+    for fr in lineage:
+        code = fr.get("code", "")
+        O = sample_occupancy(code, ex, res=args.res, seed=args.seed, run_timeout=args.timeout)
+        if O is None:
+            continue
+        im = Image.fromarray(render_occupancy(O, img_w=tw, img_h=th - 22), "RGB")
+        panel = Image.new("RGB", (tw, th), (12, 12, 18))
+        panel.paste(im, (0, 22))
+        d = ImageDraw.Draw(panel)
+        d.text((6, 5), f"gen {fr.get('generation','?')}   fit {fr.get('fitness', 0):.4f}", fill=(232, 226, 220))
+        tiles.append(panel)
+    if not tiles:
+        print(f"{RED}all lineage frames failed to render{RESET}")
+        return 1
+
+    arrow = 18
+    strip = Image.new("RGB", (sum(t.width for t in tiles) + arrow * (len(tiles) - 1), th), (8, 8, 12))
+    x = 0
+    draw = ImageDraw.Draw(strip)
+    for i, t in enumerate(tiles):
+        strip.paste(t, (x, 0))
+        x += t.width
+        if i < len(tiles) - 1:
+            draw.text((x + 4, th // 2 - 6), "->", fill=(150, 150, 160))
+            x += arrow
+    out = args.out or "svdag_lineage.png"
+    strip.save(out)
+    print(f"{GREEN}lineage strip {out}{RESET}  ({len(tiles)} breakthroughs)")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="svdag_beauty FunSearch kernel — volcanic SVDAG terrain")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -217,6 +274,16 @@ def main() -> int:
     rdp.add_argument("--allow-unsandboxed", action="store_true")
     rdp.add_argument("-v", "--verbose", action="store_true")
 
+    lp = sub.add_parser("lineage", help="Cross-generation breakthrough filmstrip (gen0 → champion)")
+    lp.add_argument("--results", required=True)
+    lp.add_argument("--out", default=None)
+    lp.add_argument("--max-frames", type=int, default=8, help="thin to at most N frames (0 = all)")
+    lp.add_argument("--res", type=int, default=88)
+    lp.add_argument("--seed", type=float, default=5151.0)
+    lp.add_argument("--timeout", type=float, default=120.0)
+    lp.add_argument("--allow-unsandboxed", action="store_true")
+    lp.add_argument("-v", "--verbose", action="store_true")
+
     scp = sub.add_parser("showcase", help="Montage of the top-N evolved terrains")
     scp.add_argument("--results", required=True)
     scp.add_argument("--out", default=None)
@@ -231,7 +298,7 @@ def main() -> int:
     args = parser.parse_args()
     setup_logging(getattr(args, "verbose", False))
     dispatch = {"run": cmd_run, "baselines": cmd_baselines, "instances": cmd_instances,
-                "render": cmd_render, "showcase": cmd_showcase}
+                "render": cmd_render, "showcase": cmd_showcase, "lineage": cmd_lineage}
     handler = dispatch.get(args.cmd)
     if handler:
         return handler(args)

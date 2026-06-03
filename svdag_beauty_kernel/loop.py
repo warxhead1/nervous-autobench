@@ -172,6 +172,9 @@ class SVDAGBeautyKernel(FunSearchKernel):
             "stop_reason": self.stop_reason,
             "llm_requests": self.llm_requests,
             "history": self.history,
+            # Cross-generation breakthrough lineage (code + metadata per global-best
+            # improvement) — source for the lineage-strip compositor.
+            "lineage": getattr(self, "_lineage", []),
             "best_program": {
                 "id": best.id, "fitness": best.fitness, "density_code": best.code,
                 "island": best.island, "generation": best.generation, "source": best.source,
