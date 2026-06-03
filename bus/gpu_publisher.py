@@ -49,9 +49,12 @@ class GPUResultPublisher:
         """Publish directly to nbus:all Redis stream — works outside zellij sessions."""
         try:
             result = subprocess.run(
+                # Match the CloudEvents source stamped by GPUResult.to_event()
+                # so the same producer never emits divergent source URIs
+                # (path-style /autobench/<component>, never a bare "autobench").
                 ["redis-cli", "--no-auth-warning", "XADD", "nbus:all", "*",
                  "type", channel,
-                 "source", "autobench",
+                 "source", "/autobench/gpu_executor",
                  "specversion", "1.0",
                  "data", payload],
                 timeout=2,
