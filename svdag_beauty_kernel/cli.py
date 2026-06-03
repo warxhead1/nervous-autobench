@@ -16,6 +16,7 @@ from . import (
     SVDAGBeautyKernel, generate_instance, evaluate_on_instance,
     ensure_executor, SEED_PROGRAMS, CONTROL_PROGRAMS, _INSTANCE_FACTORIES,
 )
+from . import bridge_eval
 from ..kernels import KernelConfig
 
 
@@ -91,6 +92,22 @@ def cmd_run(args: argparse.Namespace) -> int:
     if best:
         print(f"\nBest: {best.id}  fitness={best.fitness:.6f} (island {best.island}, gen {best.generation})")
         print(f"\n{best.code}")
+    # Auto top-N engine render: for the top-N champions, request a real engine
+    # render via the generic funsearch.engine_render contract and emit each landed
+    # screenshot as funsearch.artifact.v1 (render_type="engine_render") with full
+    # categorization metadata. Gated by BOTH the env flag AND the CLI arg so it
+    # stays off unless explicitly enabled; degrades gracefully (no engine → skip).
+    top_n = getattr(args, "engine_render_top_n", 0)
+    if top_n > 0 and bridge_eval.render_enabled():
+        try:
+            n = kernel.engine_render_top_n(programs, top_n)
+            print(f"[engine-render] emitted {n} engine_render artifact(s) (top-{top_n})")
+        except Exception as e:  # noqa: BLE001
+            print(f"[engine-render] failed (non-fatal): {e}")
+    elif top_n > 0:
+        print("[engine-render] --engine-render-top-n set but AUTOBENCH_ENGINE_RENDER "
+              "is off; skipping (set AUTOBENCH_ENGINE_RENDER=1 to enable)")
+
     if getattr(args, "post_assess", False) and config.output_dir:
         import glob
         rf = sorted(glob.glob(str(config.output_dir / "svdag_beauty_results_gen*.json")),
@@ -255,6 +272,10 @@ def main() -> int:
     rp.add_argument("--post-assess", action="store_true",
                     help="After the run, render+critique the top programs via the MiniMax observer")
     rp.add_argument("--assess-top-n", type=int, default=5)
+    rp.add_argument("--engine-render-top-n", type=int, default=0,
+                    help="After the run, request an external-engine render for the "
+                         "top-N champions and emit each as a funsearch.artifact.v1 "
+                         "(default 0 = off; also requires AUTOBENCH_ENGINE_RENDER=1)")
     rp.add_argument("-v", "--verbose", action="store_true")
 
     bp = sub.add_parser("baselines", help="Evaluate seed + control programs (derisking gate)")

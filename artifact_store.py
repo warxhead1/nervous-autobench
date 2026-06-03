@@ -31,8 +31,18 @@ class ArtifactRecord:
     sdf_code: str = ""   # raw C++ sdf() for playground push (SDF kernel only)
 
 
-def save_artifact_record(record: ArtifactRecord, nervous_bin: str | None = None) -> None:
-    """Write record to artifacts index, publish bus event, and push to playground."""
+def save_artifact_record(
+    record: ArtifactRecord,
+    nervous_bin: str | None = None,
+    extra_data: dict | None = None,
+) -> None:
+    """Write record to artifacts index, publish bus event, and push to playground.
+
+    ``extra_data`` (optional) merges extra top-level keys into the artifact
+    ``data`` block — used for gallery-grouping discriminators like ``island`` and
+    ``candidate_id`` that aren't part of the base ArtifactRecord. funsearch.artifact.v1
+    allows additional properties on ``data``, so these pass through to consumers.
+    """
     index_path = ARTIFACTS_ROOT / "index.jsonl"
     index_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -48,6 +58,10 @@ def save_artifact_record(record: ArtifactRecord, nervous_bin: str | None = None)
         "metadata": record.metadata,
         "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if extra_data:
+        # Don't clobber the canonical fields; extras only add new keys.
+        for k, v in extra_data.items():
+            entry.setdefault(k, v)
 
     with open(index_path, "a") as f:
         f.write(json.dumps(entry) + "\n")

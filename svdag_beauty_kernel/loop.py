@@ -25,9 +25,9 @@ class SVDAGBeautyKernel(FunSearchKernel):
     rocky / porous / volcanic SVDAG terrain.
 
     Fitness is a CPU membership oracle over the sampled occupancy field (no GPU).
-    The best candidate is optionally rendered for real on tengine via the
-    tengine.shadergen.eval contract (confirmation only; gated by
-    AUTOBENCH_SVDAG_EVAL_RENDER).
+    The best candidate is optionally rendered for real by an external engine via
+    the generic funsearch.engine_render contract (confirmation only; gated by
+    AUTOBENCH_ENGINE_RENDER).
     """
 
     # Emitting on the 'svdag.*' prefix means base._publish unifies to kernel.*
@@ -118,32 +118,42 @@ class SVDAGBeautyKernel(FunSearchKernel):
             "code_length": float(len(program.code)),
         }
 
-    # ---- artifact render via the tengine eval contract (confirmation) ---
+    # ---- artifact render via the generic engine-render contract (confirmation) ---
 
     def _artifact_render_type(self) -> str:
         return "svdag_voxel_iso"
+
+    def _instance_for(self, program: CandidateProgram):
+        """Return the VolcanoInstance this program's island is assigned to (or None)."""
+        if self.problem_instances:
+            return self.problem_instances[program.island % len(self.problem_instances)]
+        return None
 
     def _render_best_program(self, best: CandidateProgram, out_path: Path) -> bool:
         """Render the best candidate to a PNG artifact.
 
         Default: in-house CPU voxel-isometric render (always works, no GPU). If
-        AUTOBENCH_SVDAG_EVAL_RENDER is set, additionally request a real tengine
-        render via the eval contract and prefer that screenshot when it lands.
+        AUTOBENCH_ENGINE_RENDER is set, additionally request a real engine render
+        via the generic funsearch.engine_render contract and prefer that
+        screenshot when it lands.
         """
-        seed = 1337.0
-        if self.problem_instances:
-            seed = self.problem_instances[best.island % len(self.problem_instances)].seed
+        inst = self._instance_for(best)
+        seed = inst.seed if inst is not None else 1337.0
 
-        # Optional high-fidelity tengine render (confirmation path).
+        # Optional high-fidelity external-engine render (confirmation path).
         if bridge_eval.render_enabled():
             try:
-                data = bridge_eval.request_render(self._publish, best.code, best.id)
+                data = bridge_eval.request_render(
+                    self._publish, best.code, best.id,
+                    run_id=self.run_id, kernel=self.BUS_CHANNEL_PREFIX,
+                    instance=(inst.name if inst is not None else None), seed=seed,
+                )
                 src = (data or {}).get("screenshot_path")
                 if data and data.get("status") == "ok" and src and Path(src).exists():
                     shutil.copyfile(src, out_path)
                     return True
             except Exception as exc:  # noqa: BLE001
-                logger.debug("svdag eval render failed, falling back to CPU: %s", exc)
+                logger.debug("engine render failed, falling back to CPU: %s", exc)
 
         # Default CPU render — sample occupancy, isometric voxel projection.
         try:
@@ -153,6 +163,113 @@ class SVDAGBeautyKernel(FunSearchKernel):
         except Exception as exc:  # noqa: BLE001
             logger.debug("svdag CPU render failed: %s", exc)
             return False
+
+    # ---- auto top-N engine render hook (run completion) ----------------
+
+    def engine_render_top_n(self, programs: list[CandidateProgram], top_n: int) -> int:
+        """For the top-N champions, request a real engine render and emit each
+        landed screenshot as a ``funsearch.artifact.v1`` carrying full
+        categorization metadata (so a gallery can group without extra lookups).
+
+        Degrades gracefully: ``bridge_eval.request_render`` polls the bus log with
+        a timeout, so an unanswered request just logs and is skipped — the run is
+        never crashed. Returns the number of engine-render artifacts emitted.
+
+        Gated by the caller (env flag + CLI arg); this method assumes it was asked
+        to run. ``top_n <= 0`` is a no-op.
+        """
+        if top_n <= 0 or not programs:
+            return 0
+
+        emitted = 0
+        for program in programs[:top_n]:
+            if not program.code or program.fitness <= 0:
+                continue
+            inst = self._instance_for(program)
+            instance_name = inst.name if inst is not None else (
+                self.config.instances[0] if self.config.instances else "unknown")
+            seed = inst.seed if inst is not None else 1337.0
+            try:
+                data = bridge_eval.request_render(
+                    self._publish, program.code, program.id,
+                    run_id=self.run_id, kernel=self.BUS_CHANNEL_PREFIX,
+                    instance=instance_name, seed=seed,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("engine render request failed for %s (skip): %s",
+                               program.id, exc)
+                continue
+
+            if not data:
+                logger.info("engine render: no engine answered for %s (skip)", program.id)
+                continue
+            if data.get("status") != "ok":
+                logger.info("engine render: status=%s for %s (skip): %s",
+                            data.get("status"), program.id, data.get("error"))
+                continue
+            screenshot = data.get("screenshot_path")
+            if not screenshot or not Path(screenshot).exists():
+                logger.info("engine render: missing screenshot for %s (skip)", program.id)
+                continue
+
+            try:
+                self._emit_engine_render_artifact(program, instance_name, screenshot, data)
+                emitted += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("emit engine_render artifact failed for %s: %s",
+                               program.id, exc)
+        logger.info("engine_render_top_n: emitted %d/%d artifact(s)", emitted, top_n)
+        return emitted
+
+    def _emit_engine_render_artifact(
+        self, program: CandidateProgram, instance_name: str,
+        screenshot_path: str, completed: dict,
+    ) -> None:
+        """Emit one funsearch.artifact.v1 for an engine-rendered champion.
+
+        Carries categorization metadata (run_id, kernel, instance, island,
+        generation, fitness, candidate_id) at the data level and the structural
+        signature (pore_frac, rough, beta, relief) in metadata, so a gallery can
+        group/sort without re-deriving anything.
+        """
+        from autobench.artifact_store import ArtifactRecord, save_artifact_record
+
+        tv = self.extract_t_vector(program)
+        diag = getattr(program, "_svdag_diag", {}) or {}
+        record = ArtifactRecord(
+            kernel=self.BUS_CHANNEL_PREFIX,
+            run_id=self.run_id,
+            generation=program.generation,
+            fitness=program.fitness,
+            instance=instance_name,
+            artifact_path=screenshot_path,
+            render_type="engine_render",
+            sdf_code="",
+            metadata={
+                # categorization (structural signature)
+                "pore_frac": float(tv.get("pore_frac", diag.get("pore_frac", 0.0))),
+                "rough": float(tv.get("rough", diag.get("rough", 0.0))),
+                "beta": float(tv.get("beta", diag.get("beta", 0.0))),
+                "relief": float(tv.get("relief", diag.get("relief", 0.0))),
+                "spectral_beta": float(tv.get("beta", diag.get("beta", 0.0))),
+                "code_length": len(program.code),
+                "best_program_code": program.code[:500],
+                # engine provenance (from the completed reply)
+                "engine": completed.get("engine", ""),
+                "render_ms": completed.get("render_ms"),
+            },
+        )
+        # ArtifactRecord/save_artifact_record only knows the base fields; attach the
+        # gallery-grouping discriminators (island + candidate_id) onto data via the
+        # extra-properties channel. funsearch.artifact.v1 allows additionalProperties
+        # on data, so emit them inline alongside the standard envelope.
+        save_artifact_record(
+            record, self._nervous_bin,
+            extra_data={
+                "island": program.island,
+                "candidate_id": program.id,
+            },
+        )
 
     # ---- results -------------------------------------------------------
 
