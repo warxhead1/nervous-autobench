@@ -989,6 +989,13 @@ class FunSearchKernel(abc.ABC):
         raw events were coalesced into this snapshot; ``window_ms`` the span.
         """
         now = time.time()
+        # Lazy-init the snapshot state: subclasses with a custom __init__ (e.g.
+        # TSPKernel) don't run base.__init__'s setup, so guard the first access.
+        if not hasattr(self, "_snapshot_last_emit"):
+            self._snapshot_last_emit = 0.0
+            self._snapshot_window_start = now
+            self._snapshot_min_interval_s = getattr(self, "_snapshot_min_interval_s", 1.0)
+            self._snapshot_event_count = getattr(self, "_snapshot_event_count", 0)
         # _snapshot_event_count is incremented in _publish() for every raw
         # kernel event since the last snapshot — true firehose volume coalesced.
         if (now - self._snapshot_last_emit) < self._snapshot_min_interval_s:
