@@ -54,7 +54,8 @@ def _ask_minimax(prompt: str, timeout: float = LLM_TIMEOUT) -> str:
 
 def _assess_sdf_program(prog: dict, png_path: Path | None) -> dict:
     """Ask MiniMax to assess one SDF program's mathematical structure."""
-    code = prog.get("code", "") or prog.get("sdf_code", "")
+    code = (prog.get("code") or prog.get("sdf_code") or prog.get("density_code")
+            or prog.get("priority_code") or "")
     fitness = prog.get("fitness", 0.0)
     eikonal = prog.get("t_vector", {}).get("eikonal_score") or prog.get("_eikonal_score")
     topology = prog.get("t_vector", {}).get("topology_score") or prog.get("_topology_score")
@@ -162,11 +163,22 @@ def _render_noise(code: str, out_path: Path) -> bool:
         return False
 
 
+def _render_svdag(code: str, out_path: Path) -> bool:
+    try:
+        from autobench.svdag_beauty_kernel.render import render_density_to_png
+        return render_density_to_png(code, None, out_path, res=96, seed=5151.0)  # native compile
+    except Exception as e:
+        logger.warning("svdag render failed: %s", e)
+        return False
+
+
 def _render_program(kernel: str, code: str, out_path: Path, instance_name: str = "") -> bool:
     if kernel == "sdf":
         return _render_sdf(code, out_path, instance_name=instance_name)
     elif kernel == "noise":
         return _render_noise(code, out_path)
+    elif kernel in ("svdag", "svdag_beauty"):
+        return _render_svdag(code, out_path)
     return False
 
 
@@ -254,7 +266,8 @@ def assess_run(
     assessments: list[dict] = []
 
     for i, prog in enumerate(top_programs[:top_n]):
-        code = prog.get("code", "") or prog.get("sdf_code", "")
+        code = (prog.get("code") or prog.get("sdf_code") or prog.get("density_code")
+            or prog.get("priority_code") or "")
         if not code:
             continue
 
@@ -269,10 +282,11 @@ def assess_run(
             print(f"  [render] rank {i+1}: no GPU or render failed")
 
         print(f"  [assess] rank {i+1} (fitness={prog['fitness']:.4f}) …", end=" ", flush=True)
-        if kernel == "sdf":
-            a = _assess_sdf_program(prog, png_path)
-        else:
+        if kernel == "noise":
             a = _assess_noise_program(prog, png_path)
+        else:
+            # generic code+fitness+render assessor (sdf, svdag, tsp, …)
+            a = _assess_sdf_program(prog, png_path)
         assessments.append(a)
         print("done")
 

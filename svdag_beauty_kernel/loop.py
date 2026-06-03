@@ -98,7 +98,25 @@ class SVDAGBeautyKernel(FunSearchKernel):
         program.worst_fitness = min(scores)
         program.computation_time_ms = elapsed
         program.evaluated = True
+        # Stash the volcanic diagnostics so extract_t_vector (cross-run prior) and
+        # the candidate event carry WHAT structure worked, not just a scalar.
+        diag = getattr(instances[0], "_last_diag", {}) if instances else {}
+        program._svdag_diag = diag if isinstance(diag, dict) else {}
         return mean, var, program.worst_fitness
+
+    def extract_t_vector(self, program: CandidateProgram) -> dict:
+        """Sufficient-statistic vector for the consolidated cross-run prior:
+        the structural signature (porosity, roughness, spectral slope, relief)
+        so successive runs accumulate which volcanic structure scores well."""
+        d = getattr(program, "_svdag_diag", {}) or {}
+        return {
+            "fitness": program.fitness,
+            "pore_frac": float(d.get("pore_frac", 0.0)),
+            "rough": float(d.get("rough", 0.0)),
+            "beta": float(d.get("beta", 0.0)),
+            "relief": float(d.get("relief", 0.0)),
+            "code_length": float(len(program.code)),
+        }
 
     # ---- artifact render via the tengine eval contract (confirmation) ---
 

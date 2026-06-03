@@ -91,6 +91,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     if best:
         print(f"\nBest: {best.id}  fitness={best.fitness:.6f} (island {best.island}, gen {best.generation})")
         print(f"\n{best.code}")
+    if getattr(args, "post_assess", False) and config.output_dir:
+        import glob
+        rf = sorted(glob.glob(str(config.output_dir / "svdag_beauty_results_gen*.json")),
+                    key=lambda p: Path(p).stat().st_mtime)
+        if rf:
+            try:
+                from autobench.audit.post_run_assess import assess_run
+                report, pngs = assess_run(Path(rf[-1]), kernel="svdag",
+                                          top_n=args.assess_top_n, nervous_bin=kernel._nervous_bin)
+                print(f"[observer] report: {report}  renders: {len(pngs)}")
+            except Exception as e:  # noqa: BLE001
+                print(f"[observer] assessment failed (non-fatal): {e}")
     return 0
 
 
@@ -183,6 +195,9 @@ def main() -> int:
     rp.add_argument("--output-dir", default=None)
     rp.add_argument("--allow-unsandboxed", action="store_true",
                     help="DANGER: run untrusted candidate code without isolation")
+    rp.add_argument("--post-assess", action="store_true",
+                    help="After the run, render+critique the top programs via the MiniMax observer")
+    rp.add_argument("--assess-top-n", type=int, default=5)
     rp.add_argument("-v", "--verbose", action="store_true")
 
     bp = sub.add_parser("baselines", help="Evaluate seed + control programs (derisking gate)")
