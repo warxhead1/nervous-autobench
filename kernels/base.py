@@ -64,6 +64,7 @@ KERNEL_REGISTRY: dict[str, type["FunSearchKernel"]] = {}
 # Verbatim spec order — the wire enum for the ``domain`` field.
 KERNEL_DOMAINS: tuple[str, ...] = (
     "sph", "sdf", "noise", "phase", "terrain", "thermal", "latent", "tsp",
+    "svdag",
 )
 _KERNEL_DOMAIN_SET = frozenset(KERNEL_DOMAINS)
 
