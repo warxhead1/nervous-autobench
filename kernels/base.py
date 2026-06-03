@@ -1103,7 +1103,10 @@ class FunSearchKernel(abc.ABC):
         """
         head, sep, rest = channel.partition(".")
         if sep and head in _KERNEL_DOMAIN_SET:
-            new_channel = f"kernel.{rest}"
+            # started/completed already carry a "kernel." segment
+            # (<domain>.kernel.completed.v1); the rest do not
+            # (<domain>.candidate.evaluated.v1). Avoid a doubled prefix.
+            new_channel = rest if rest.startswith("kernel.") else f"kernel.{rest}"
             if data.get("domain") != head:
                 data = {"domain": head, **data}
             return new_channel, data
