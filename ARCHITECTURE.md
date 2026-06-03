@@ -229,6 +229,38 @@ event types (iteration progress, sandbox verdicts, evolved-kernel candidates,
 plateau/reset signals, run completion). **deer-flow consumes these events** as a
 bus subscriber; autobench does not call into deer-flow directly.
 
+### Unified kernel channels
+
+The 8 per-domain kernel families (`sph`/`sdf`/`noise`/`phase`/`terrain`/
+`thermal`/`latent`/`tsp`) are collapsed into a single `kernel.*` prefix with a
+required `domain` discriminator in `data` (e.g. `sph.candidate.evaluated.v1` →
+`kernel.candidate.evaluated.v1` + `data.domain="sph"`). The rewrite is
+centralized in `FunSearchKernel._publish` (`_unify_kernel_channel`), so every
+call site is unified regardless of the literal a subclass passes.
+`autobench.island.health.v1` stays domain-agnostic.
+
+`pulse.kernel.snapshot.v1` (source `/autobench/pulse`) is a low-frequency
+coalesced rollup — at most once per generation / ~1s — carrying per-island
+status, budget, plateau, `window_ms`, and `event_count`. Phones/TUIs prefer it
+over the per-candidate firehose.
+
+### Kernel firehose throttle knobs
+
+The kernel publish path forks `nervous publish` once per event. Two env knobs
+tame it (both default to no-op = behaviour unchanged):
+
+- `AUTOBENCH_KERNEL_SAMPLE_N` (default `1`): when `>1`, only every Nth
+  high-frequency event (`kernel.candidate.evaluated.v1`,
+  `autobench.island.health.v1`) is forwarded to the **live** bus. The durable
+  `debug.jsonl` write still records everything, and `pulse.kernel.snapshot.v1`
+  remains the low-freq durable summary, so sampling is lossless for consumers
+  that read the snapshot or the durable log.
+- `AUTOBENCH_OBS_DISABLE_PIPE` / `AUTOBENCH_KERNEL_DISABLE_PIPE` (default off):
+  suppress the live fork entirely. The first var is shared with
+  `observability/core.py` so a single "disable obs" flag now quiets both the
+  observability emitter and the kernel firehose; the second is a kernel-only
+  override. The durable `debug.jsonl` write is never suppressed.
+
 ---
 
 ## Open questions

@@ -114,9 +114,12 @@ class AutobenchResultPublisher:
         try:
             import subprocess as _sp
             result = _sp.run(
+                # Match the CloudEvents source stamped by _build_event() so the
+                # same producer never emits divergent source URIs (path-style
+                # /autobench/<component>, never a bare host-less "autobench").
                 ["redis-cli", "--no-auth-warning", "XADD", "nbus:all", "*",
                  "type", channel,
-                 "source", "autobench",
+                 "source", "/autobench/evaluator",
                  "specversion", "1.0",
                  "data", payload],
                 timeout=2,
