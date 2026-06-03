@@ -103,25 +103,37 @@ class SVDAGBeautyKernel(FunSearchKernel):
     # ---- artifact render via the tengine eval contract (confirmation) ---
 
     def _artifact_render_type(self) -> str:
-        return "svdag_render" if bridge_eval.render_enabled() else "none"
+        return "svdag_voxel_iso"
 
     def _render_best_program(self, best: CandidateProgram, out_path: Path) -> bool:
-        if not bridge_eval.render_enabled():
-            return False
+        """Render the best candidate to a PNG artifact.
+
+        Default: in-house CPU voxel-isometric render (always works, no GPU). If
+        AUTOBENCH_SVDAG_EVAL_RENDER is set, additionally request a real tengine
+        render via the eval contract and prefer that screenshot when it lands.
+        """
+        seed = 1337.0
+        if self.problem_instances:
+            seed = self.problem_instances[best.island % len(self.problem_instances)].seed
+
+        # Optional high-fidelity tengine render (confirmation path).
+        if bridge_eval.render_enabled():
+            try:
+                data = bridge_eval.request_render(self._publish, best.code, best.id)
+                src = (data or {}).get("screenshot_path")
+                if data and data.get("status") == "ok" and src and Path(src).exists():
+                    shutil.copyfile(src, out_path)
+                    return True
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("svdag eval render failed, falling back to CPU: %s", exc)
+
+        # Default CPU render — sample occupancy, isometric voxel projection.
         try:
-            data = bridge_eval.request_render(self._publish, best.code, best.id)
+            from .render import render_density_to_png
+            return render_density_to_png(best.code, self.executor, out_path,
+                                         res=96, seed=seed, run_timeout=120)
         except Exception as exc:  # noqa: BLE001
-            logger.debug("svdag eval render failed: %s", exc)
-            return False
-        if not data or data.get("status") != "ok":
-            return False
-        src = data.get("screenshot_path")
-        if not src or not Path(src).exists():
-            return False
-        try:
-            shutil.copyfile(src, out_path)
-            return True
-        except OSError:
+            logger.debug("svdag CPU render failed: %s", exc)
             return False
 
     # ---- results -------------------------------------------------------

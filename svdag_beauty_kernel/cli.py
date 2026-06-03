@@ -19,6 +19,9 @@ from . import (
 from ..kernels import KernelConfig
 
 
+GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
+
+
 def setup_logging(verbose: bool = False) -> None:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -98,6 +101,68 @@ def cmd_instances(args: argparse.Namespace) -> int:
     return 0
 
 
+def _champion_from_results(path):
+    import json
+    r = json.load(open(path))
+    b = r.get("best_program") or {}
+    return b.get("density_code") or b.get("code", ""), b.get("fitness", 0.0)
+
+
+def cmd_render(args) -> int:
+    """Render one evolved compute_density to a PNG (champion of a results file or a code file)."""
+    from .render import render_density_to_png
+    if args.code_file:
+        code = open(args.code_file).read(); fit = None
+    elif args.results:
+        code, fit = _champion_from_results(args.results)
+    else:
+        print(f"{RED}need --results or --code-file{RESET}"); return 1
+    if not code.strip():
+        print(f"{RED}no candidate code found{RESET}"); return 1
+    ex = ensure_executor(allow_unsandboxed=args.allow_unsandboxed)
+    out = args.out or "svdag_render.png"
+    ok = render_density_to_png(code, ex, out, res=args.res, seed=args.seed, run_timeout=args.timeout)
+    print(f"{GREEN if ok else RED}{'rendered '+out if ok else 'render FAILED'}{RESET}"
+          + (f"  (champion fitness={fit:.4f})" if fit else ""))
+    return 0 if ok else 1
+
+
+def cmd_showcase(args) -> int:
+    """Render the top-N programs of a results file into a labelled montage grid."""
+    import json, math
+    from .render import sample_occupancy, render_occupancy
+    from PIL import Image, ImageDraw
+    r = json.load(open(args.results))
+    progs = r.get("top_programs") or ([r["best_program"]] if r.get("best_program") else [])
+    progs = progs[: args.top_n]
+    if not progs:
+        print(f"{RED}no programs in {args.results}{RESET}"); return 1
+    ex = ensure_executor(allow_unsandboxed=args.allow_unsandboxed)
+    tiles = []
+    for p in progs:
+        code = p.get("density_code") or p.get("code", "")
+        seed = float((p.get("diag") or {}).get("seed", 5151.0)) if isinstance(p.get("diag"), dict) else 5151.0
+        O = sample_occupancy(code, ex, res=args.res, seed=seed, run_timeout=args.timeout)
+        if O is None:
+            continue
+        img = render_occupancy(O, img_w=480, img_h=380)
+        im = Image.fromarray(img, "RGB")
+        d = ImageDraw.Draw(im)
+        d.text((8, 8), f"isl{p.get('island','?')} gen{p.get('generation','?')}  fit={p.get('fitness',0):.4f}", fill=(255, 240, 220))
+        tiles.append(im)
+    if not tiles:
+        print(f"{RED}all renders failed{RESET}"); return 1
+    cols = min(args.cols, len(tiles)); rows = math.ceil(len(tiles) / cols)
+    tw, th = tiles[0].size
+    grid = Image.new("RGB", (cols * tw, rows * th), (12, 12, 20))
+    for i, im in enumerate(tiles):
+        grid.paste(im, ((i % cols) * tw, (i // cols) * th))
+    out = args.out or "svdag_showcase.png"
+    grid.save(out)
+    print(f"{GREEN}showcase {out}{RESET}  ({len(tiles)} terrains, {cols}x{rows})")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="svdag_beauty FunSearch kernel — volcanic SVDAG terrain")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -127,9 +192,31 @@ def main() -> int:
 
     sub.add_parser("instances", help="List volcanic archetypes")
 
+    rdp = sub.add_parser("render", help="Render an evolved terrain to a PNG")
+    rdp.add_argument("--results", default=None, help="results JSON (renders its champion)")
+    rdp.add_argument("--code-file", default=None, help="a compute_density .c/.slang file")
+    rdp.add_argument("--out", default=None)
+    rdp.add_argument("--res", type=int, default=96)
+    rdp.add_argument("--seed", type=float, default=5151.0)
+    rdp.add_argument("--timeout", type=float, default=120.0)
+    rdp.add_argument("--allow-unsandboxed", action="store_true")
+    rdp.add_argument("-v", "--verbose", action="store_true")
+
+    scp = sub.add_parser("showcase", help="Montage of the top-N evolved terrains")
+    scp.add_argument("--results", required=True)
+    scp.add_argument("--out", default=None)
+    scp.add_argument("--top-n", type=int, default=6)
+    scp.add_argument("--cols", type=int, default=3)
+    scp.add_argument("--res", type=int, default=80)
+    scp.add_argument("--seed", type=float, default=5151.0)
+    scp.add_argument("--timeout", type=float, default=120.0)
+    scp.add_argument("--allow-unsandboxed", action="store_true")
+    scp.add_argument("-v", "--verbose", action="store_true")
+
     args = parser.parse_args()
     setup_logging(getattr(args, "verbose", False))
-    dispatch = {"run": cmd_run, "baselines": cmd_baselines, "instances": cmd_instances}
+    dispatch = {"run": cmd_run, "baselines": cmd_baselines, "instances": cmd_instances,
+                "render": cmd_render, "showcase": cmd_showcase}
     handler = dispatch.get(args.cmd)
     if handler:
         return handler(args)
