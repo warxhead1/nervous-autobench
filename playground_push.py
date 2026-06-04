@@ -62,8 +62,14 @@ _SPHERE_TRACER_MAINIMAGE = """\
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {{
     vec2 uv = (fragCoord - 0.5*iResolution.xy) / iResolution.y;
+    // Camera: drag horizontally to orbit, vertically to zoom; idle auto-spins.
     float t = iTime * 0.4 + {i_time_offset};
-    vec3 ro = vec3({cam_r}*cos(t), 0.8*{cam_r}, {cam_r}*sin(t));
+    float cr = {cam_r};
+    if (iMouse.z > 0.0) {{
+        t = (iMouse.x / iResolution.x) * 6.2831853 + {i_time_offset};
+        cr = {cam_r} * (0.45 + 1.4 * clamp(iMouse.y / iResolution.y, 0.0, 1.0));
+    }}
+    vec3 ro = vec3(cr*cos(t), 0.8*{cam_r}, cr*sin(t));
     vec3 ww = normalize(-ro);
     vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
     vec3 vv = cross(uu, ww);

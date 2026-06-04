@@ -63,6 +63,31 @@ def save_artifact_record(
         for k, v in extra_data.items():
             entry.setdefault(k, v)
 
+    # Emit a self-describing render path: an absolute path lets any consumer
+    # resolve the screenshot without knowing autobench's on-disk layout. Callers
+    # pass paths relative to the artifacts base (ARTIFACTS_ROOT.parent); engine
+    # renders may already be absolute, in which case this is a no-op.
+    ap = entry.get("artifact_path") or ""
+    if ap and not Path(ap).is_absolute():
+        entry["artifact_path"] = str(ARTIFACTS_ROOT.parent / ap)
+
+    # Self-describing live shader: for GLSL-capable kernels, attach the full
+    # Shadertoy-compatible GLSL so any consumer (in-app WebGL canvas, Shadertoy
+    # export) can render it without re-deriving how to transpile the evolved
+    # code. GPU-incompatible programs (static/large arrays) yield None and are
+    # simply left without a shader — the card still shows its PNG.
+    if record.render_type == "sdf_raymarch" and record.sdf_code:
+        try:
+            from autobench.playground_push import (  # type: ignore
+                cpp_to_glsl, build_shadertoy_glsl, _INSTANCE_CAMERA_DIST,
+            )
+            glsl = cpp_to_glsl(record.sdf_code)
+            if glsl:
+                cam = _INSTANCE_CAMERA_DIST.get(record.instance, 3.5)
+                entry["shader_glsl"] = build_shadertoy_glsl(glsl, camera_dist=cam)
+        except Exception as e:
+            logger.debug("shader_glsl wrap skipped: %s", e)
+
     with open(index_path, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
