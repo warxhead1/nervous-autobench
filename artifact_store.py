@@ -87,6 +87,15 @@ def save_artifact_record(
                 entry["shader_glsl"] = build_shadertoy_glsl(glsl, camera_dist=cam)
         except Exception as e:
             logger.debug("shader_glsl wrap skipped: %s", e)
+    elif record.render_type == "oasis_strip":
+        # The oasis renderer writes a Shadertoy heightfield raymarcher beside the
+        # PNG; attach it so the card gets a live, draggable 3D view.
+        try:
+            sidecar = Path(entry["artifact_path"]).with_suffix(".glsl")
+            if sidecar.exists():
+                entry["shader_glsl"] = sidecar.read_text()
+        except Exception as e:
+            logger.debug("oasis shader_glsl attach skipped: %s", e)
 
     with open(index_path, "a") as f:
         f.write(json.dumps(entry) + "\n")
