@@ -84,4 +84,18 @@ __all__ = [
     # rollout_eval (nervous-bus-71cn.5)
     "evaluate_via_rollout",
     "calibrate_ref_lap_time",
+    # loop_feedback (nervous-bus-71cn.8)
+    "EpisodeFeedback",
+    "consume_ai_brain_episodes",
+    "recalibrate_instances_from_episodes",
 ]
+
+# --- additive: loop_feedback module (nervous-bus-71cn.8) ---
+try:
+    from autobench.racing_kernel.loop_feedback import (  # noqa: F401
+        EpisodeFeedback,
+        consume_ai_brain_episodes,
+        recalibrate_instances_from_episodes,
+    )
+except ImportError:
+    pass

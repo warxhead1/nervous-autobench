@@ -23,6 +23,8 @@ from autobench.racing_kernel.oracle import (
     evaluate_on_instance,
     parse_llm_response,
 )
+# nervous-bus-71cn.8: closed-loop feedback from deployed ai_brain episodes
+from autobench.racing_kernel.loop_feedback import recalibrate_instances_from_episodes
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,23 @@ class RacingKernel(FunSearchKernel):
             len(self.problem_instances),
             [inst.name for inst in self.problem_instances],
         )
+
+        # nervous-bus-71cn.8: recalibrate ref_lap_time from deployed ai_brain
+        # episodes on the bus.  Tightens the oracle target so evolution always
+        # chases the fastest real-world lap a deployed brain has achieved.
+        # Falls back silently (no-op) if Redis is unavailable or no qualifying
+        # episodes exist.
+        try:
+            fb = recalibrate_instances_from_episodes(self.problem_instances)
+            if fb.updated_ref_lap_time:
+                logger.info(
+                    "RacingKernel: recalibrated ref_lap_time for %d track(s) "
+                    "from ai_brain episodes: %s",
+                    len(fb.updated_ref_lap_time),
+                    {k: f"{v:.3f}s" for k, v in fb.updated_ref_lap_time.items()},
+                )
+        except Exception as exc:  # pragma: no cover
+            logger.debug("RacingKernel: episode recalibration skipped: %s", exc)
 
     # ------------------------------------------------------------------
     # FunSearchKernel abstract interface
