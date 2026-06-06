@@ -42,6 +42,11 @@ try:
     )
     from autobench.racing_kernel.loop import RacingKernel  # noqa: F401
     KNOWN_TRACKS = TRACK_LAYOUTS
+    # rollout_eval — additive export (nervous-bus-71cn.5)
+    from autobench.racing_kernel.rollout_eval import (  # noqa: F401
+        evaluate_via_rollout,
+        calibrate_ref_lap_time,
+    )
 except ImportError:
     # Fallback: imported standalone (e.g. pytest racing_kernel without install).
     # Sub-modules use absolute imports; __init__ can stay mostly empty here.
@@ -76,4 +81,7 @@ __all__ = [
     # distill (nervous-bus-71cn.6)
     "DistillResult", "distill_controller",
     "bake_lut", "bake_mlp", "query_lut", "query_mlp", "emit_brain_event",
+    # rollout_eval (nervous-bus-71cn.5)
+    "evaluate_via_rollout",
+    "calibrate_ref_lap_time",
 ]
