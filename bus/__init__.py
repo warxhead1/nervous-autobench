@@ -9,7 +9,7 @@ autobench package root, plus two new tiny helper modules:
     ├── envelope.py     # NEW: unified build_event() (CloudEvents-lite)
     ├── signal_bus.py   # AutobenchResultPublisher + 2 subscribers
     ├── gpu_types.py    # GPUJob / GPUResult dataclasses
-    ├── gpu_publisher.py # GPUResultPublisher
+    ├── gpu_publisher.py # GPUJobPublisher + GPUResultPublisher
     └── integration.py  # RoleSpec, BudgetViolation, NervousBusPublisher, …
 
 Public re-exports:
@@ -19,7 +19,7 @@ Public re-exports:
         AutobenchResultPublisher, AutobenchResultSubscriber, DeerFlowResultSubscriber,
         make_publisher, make_subscriber, make_deerflow_subscriber,
         # gpu_types.py + gpu_publisher.py
-        GPUJob, GPUResult, GPUResultPublisher,
+        GPUJob, GPUResult, GPUJobPublisher, GPUResultPublisher,
         # integration.py
         RoleSpec, BudgetViolation, BudgetViolationMiddleware,
         DeerFlowEvaluator, NervousBusPublisher,
@@ -43,8 +43,8 @@ from .signal_bus import (
 # gpu_types.py — dataclasses
 from .gpu_types import GPUJob, GPUResult
 
-# gpu_publisher.py — GPU result publisher
-from .gpu_publisher import GPUResultPublisher
+# gpu_publisher.py — GPU job + result publishers
+from .gpu_publisher import GPUJobPublisher, GPUResultPublisher
 
 # integration.py — role routing, budget middleware, deer-flow glue, nervous-bus publisher
 from .integration import (
@@ -67,6 +67,7 @@ __all__ = [
     "DeerFlowEvaluator",
     "DeerFlowResultSubscriber",
     "GPUJob",
+    "GPUJobPublisher",
     "GPUResult",
     "GPUResultPublisher",
     "NervousBusPublisher",
