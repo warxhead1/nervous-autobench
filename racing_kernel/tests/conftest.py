@@ -6,7 +6,8 @@ This conftest patches autobench.racing_kernel.__path__ to point to the worktree
 racing_kernel directory so new modules (loop_feedback) are found from the
 worktree rather than the main checkout.
 
-This file must NOT be committed to or affect the main checkout.
+This file must NOT reach the main checkout (the feat/race-close-loop branch
+is a throwaway worktree branch and is never merged per the bead contract).
 """
 import importlib
 import sys

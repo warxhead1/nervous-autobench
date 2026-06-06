@@ -16,11 +16,11 @@ LOOP DESCRIPTION
      a. ``updated_ref_lap_time`` — per-track minimum ai_brain lap time (s).
         This tightens the oracle's physics ceiling so that evolution is always
         chasing the best *deployed* brain, not just the synthetic estimate.
-     b. ``seed_candidates`` — list of ``brain_id`` strings whose episodes had
-        the best lap times.  v1: empty list — episode events do not carry the
-        source program string.  The downstream hook documents this gap; seeding
-        from brain_id requires a registry lookup not yet implemented (tracked
-        as a v2 extension).
+     b. ``seed_candidates`` — list of ``brain_id`` (``pilot_id``) strings from
+        the best-lap ai_brain episode per track.  v1: brain_ids are emitted but
+        source program retrieval requires a brain registry lookup (v2 extension).
+        The downstream caller can pass these IDs to a registry to get the source
+        code for seeding the next generation.
 
 4. **Hook in loop.py** calls :func:`recalibrate_instances_from_episodes` after
    ``load_instances()`` at kernel startup.  The oracle uses
@@ -83,10 +83,11 @@ class EpisodeFeedback:
             least one qualifying ai_brain episode.
 
         seed_candidates:
-            List of ``pilot_id`` (brain_id) values from the best-lap episode
-            per track.  v1: always empty — source program strings are not
-            carried in episode events and require a brain registry lookup
-            (planned for v2).
+            Sorted list of unique ``pilot_id`` (brain_id) values from the
+            best-lap ai_brain episode per track.  These identify the deployed
+            brains with the best real-world performance.  Source program strings
+            are not carried in episode events; a brain registry lookup (v2
+            extension) is needed to convert these IDs into seedable code.
 
         episodes_scanned:
             Total episode entries inspected (includes all pilot_kinds).
@@ -218,10 +219,11 @@ def consume_ai_brain_episodes(
             track_name, calibrated_s, best_pilot.get(track_name, ""), feedback.episodes_used,
         )
 
-    # v1: seed_candidates is always empty — source programs are not carried in
-    # episode events.  A future v2 will cross-reference brain_id against a
-    # brain registry to retrieve the source program for seeding.
-    feedback.seed_candidates = []
+    # Populate seed_candidates with the pilot_id (brain_id) of the best-lap
+    # ai_brain episode per track.  Source code retrieval from the brain registry
+    # is a v2 extension; v1 emits the brain_ids so the next seeding pass can
+    # resolve them when the registry is available.
+    feedback.seed_candidates = sorted(set(best_pilot.values()))
 
     if not feedback.updated_ref_lap_time:
         logger.debug(

@@ -108,21 +108,21 @@ class TestConsumeAiBrainEpisodes:
         assert fb.updated_ref_lap_time == {}
         assert fb.episodes_used == 0
 
-    # Case 5: single qualifying episode → correct calibration
+    # Case 5: single qualifying episode → correct calibration + brain_id in seeds
     def test_single_qualifying_episode_sets_ref_lap_time(self):
-        """One qualifying ai_brain episode → ref_lap_time updated correctly."""
+        """One qualifying ai_brain episode → ref_lap_time updated, pilot_id in seeds."""
         instances = self._instances("oval")
         lap_ms = 4200.0
-        episodes = [_episode(track_id="oval", lap_time_ms=lap_ms)]
+        episodes = [_episode(track_id="oval", lap_time_ms=lap_ms, pilot_id="brain_x")]
         fb = consume_ai_brain_episodes(instances, _entries_fetcher=_fetcher(episodes))
         assert "oval" in fb.updated_ref_lap_time
         assert abs(fb.updated_ref_lap_time["oval"] - lap_ms / 1000.0) < 1e-6
         assert fb.episodes_used == 1
-        assert fb.seed_candidates == []  # v1: always empty
+        assert "brain_x" in fb.seed_candidates
 
-    # Case 6: multiple ai_brain laps for same track → minimum wins
+    # Case 6: multiple ai_brain laps for same track → minimum wins; fastest pilot in seeds
     def test_minimum_lap_time_wins_per_track(self):
-        """Multiple ai_brain laps for one track → fastest lap is selected."""
+        """Multiple ai_brain laps for one track → fastest lap selected; brain_B in seeds."""
         instances = self._instances("oval")
         episodes = [
             _episode(track_id="oval", lap_time_ms=5000.0, pilot_id="brain_A"),
@@ -132,6 +132,8 @@ class TestConsumeAiBrainEpisodes:
         fb = consume_ai_brain_episodes(instances, _entries_fetcher=_fetcher(episodes))
         assert fb.updated_ref_lap_time["oval"] == pytest.approx(3.8)
         assert fb.episodes_used == 3
+        # seed_candidates carries the pilot_id of the fastest lap (brain_B)
+        assert "brain_B" in fb.seed_candidates
 
     # Case 7: multiple tracks, each gets its own minimum
     def test_per_track_minimum_independent(self):
