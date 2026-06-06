@@ -46,7 +46,7 @@ import re
 import textwrap
 from typing import Any
 
-from .instance import RacingInstance
+from autobench.racing_kernel.instance import RacingInstance
 
 logger = logging.getLogger(__name__)
 

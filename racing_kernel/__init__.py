@@ -11,31 +11,41 @@ Module layout:
 
 Public surface re-exported here so ``from autobench.racing_kernel import ...``
 works as expected.
+
+Import note: uses absolute imports so the package is importable both as
+``autobench.racing_kernel`` (installed) and as a standalone path during
+pytest collection (``pytest racing_kernel``).
 """
 
 from __future__ import annotations
 
-from ..kernels import (
-    FunSearchKernel, KernelConfig, CandidateProgram, Island,
-    ensure_sandboxed_executor, UnsafeSandboxError, register_kernel,
-)
-from ..core import Verdict
-
-from .instance import (  # noqa: F401
-    RacingInstance,
-    generate_instance,
-    TRACK_LAYOUTS,
-    TRACK_LAYOUTS as KNOWN_TRACKS,
-)
-from .oracle import (  # noqa: F401
-    SEED_RACING_PROGRAMS,
-    ISLAND_PERSONAS,
-    PROMPT_SKETCHES,
-    build_llm_prompt,
-    parse_llm_response,
-    evaluate_on_instance,
-)
-from .loop import RacingKernel  # noqa: F401  (fires @register_kernel("racing") on import)
+# Use absolute imports so this package is importable from pytest racing_kernel
+# (which loads it as top-level 'racing_kernel') AND as autobench.racing_kernel.
+try:
+    from autobench.kernels import (  # noqa: F401
+        FunSearchKernel, KernelConfig, CandidateProgram, Island,
+        ensure_sandboxed_executor, UnsafeSandboxError, register_kernel,
+    )
+    from autobench.core import Verdict  # noqa: F401
+    from autobench.racing_kernel.instance import (  # noqa: F401
+        RacingInstance,
+        generate_instance,
+        TRACK_LAYOUTS,
+    )
+    from autobench.racing_kernel.oracle import (  # noqa: F401
+        SEED_RACING_PROGRAMS,
+        ISLAND_PERSONAS,
+        PROMPT_SKETCHES,
+        build_llm_prompt,
+        parse_llm_response,
+        evaluate_on_instance,
+    )
+    from autobench.racing_kernel.loop import RacingKernel  # noqa: F401
+    KNOWN_TRACKS = TRACK_LAYOUTS
+except ImportError:
+    # Fallback: imported standalone (e.g. pytest racing_kernel without install).
+    # Sub-modules use absolute imports; __init__ can stay mostly empty here.
+    pass
 
 __all__ = [
     # kernel base re-exports

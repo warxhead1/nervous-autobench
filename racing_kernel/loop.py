@@ -12,12 +12,12 @@ from __future__ import annotations
 import logging
 import time
 
-from ..kernels import (
+from autobench.kernels import (
     FunSearchKernel, KernelConfig, CandidateProgram, Island,
     register_kernel,
 )
-from .instance import RacingInstance, generate_instance, TRACK_LAYOUTS
-from .oracle import (
+from autobench.racing_kernel.instance import RacingInstance, generate_instance, TRACK_LAYOUTS
+from autobench.racing_kernel.oracle import (
     SEED_RACING_PROGRAMS,
     build_llm_prompt,
     evaluate_on_instance,
