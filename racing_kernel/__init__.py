@@ -47,6 +47,20 @@ except ImportError:
     # Sub-modules use absolute imports; __init__ can stay mostly empty here.
     pass
 
+# --- additive: distill module (nervous-bus-71cn.6) ---
+try:
+    from autobench.racing_kernel.distill import (  # noqa: F401
+        DistillResult,
+        distill_controller,
+        bake_lut,
+        bake_mlp,
+        query_lut,
+        query_mlp,
+        emit_brain_event,
+    )
+except ImportError:
+    pass
+
 __all__ = [
     # kernel base re-exports
     "FunSearchKernel", "KernelConfig", "CandidateProgram", "Island",
@@ -59,4 +73,7 @@ __all__ = [
     "build_llm_prompt", "parse_llm_response", "evaluate_on_instance",
     # loop
     "RacingKernel",
+    # distill (nervous-bus-71cn.6)
+    "DistillResult", "distill_controller",
+    "bake_lut", "bake_mlp", "query_lut", "query_mlp", "emit_brain_event",
 ]
