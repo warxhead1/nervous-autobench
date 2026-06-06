@@ -139,18 +139,35 @@ def _publish_artifact_event(entry: dict, nervous_bin: str | None) -> None:
 
     if nervous_bin:
         import subprocess, os
+        # Feed the already-built envelope on stdin via --json so nervous
+        # forwards it verbatim (same id, same source). The non-json argv path
+        # would re-wrap the envelope as `data` inside a fresh envelope, giving
+        # it a new id and breaking the nbus:dedup:<id> claim that prevents
+        # redis-mirror from double-delivering the event already in debug.jsonl.
+        # NERVOUS_DEBUG_LOG=/dev/null suppresses a second debug.jsonl write —
+        # the durable record above is the single source of truth.
+        # Redis is left ENABLED (NO_REDIS not set): this direct XADD is the
+        # primary delivery path; redis-mirror de-dups on the same id if it
+        # also tails the file. NERVOUS_STRICT_REDIS is intentionally not set —
+        # a transient Redis blip must not crash a kernel run.
         try:
             env = dict(os.environ)
             env["NBUS_SKIP_VALIDATION"] = "1"
             env["NERVOUS_NO_ZELLIJ"] = "1"
-            env["NERVOUS_NO_REDIS"] = "1"
+            env["NERVOUS_DEBUG_LOG"] = os.devnull
             proc = subprocess.Popen(
-                [nervous_bin, "publish", "funsearch.artifact.v1", json.dumps(envelope)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
+                [nervous_bin, "publish", "--json"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
             )
-            proc.wait(timeout=2)
+            proc.communicate(json.dumps(envelope).encode(), timeout=3)
         except Exception:
-            pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
 
 
 # Per-instance camera distance — keeps shapes in frame for their bbox.
