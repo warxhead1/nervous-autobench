@@ -10,6 +10,7 @@ autobench package root, plus two new tiny helper modules:
     ├── signal_bus.py   # AutobenchResultPublisher + 2 subscribers
     ├── gpu_types.py    # GPUJob / GPUResult dataclasses
     ├── gpu_publisher.py # GPUJobPublisher + GPUResultPublisher
+    ├── gpu_admission.py # s0u3.7: heartbeat-driven admission control + per-island fairness
     └── integration.py  # RoleSpec, BudgetViolation, NervousBusPublisher, …
 
 Public re-exports:
@@ -20,6 +21,8 @@ Public re-exports:
         make_publisher, make_subscriber, make_deerflow_subscriber,
         # gpu_types.py + gpu_publisher.py
         GPUJob, GPUResult, GPUJobPublisher, GPUResultPublisher,
+        # gpu_admission.py (s0u3.7)
+        GPUAdmissionGate, SubmitDecision,
         # integration.py
         RoleSpec, BudgetViolation, BudgetViolationMiddleware,
         DeerFlowEvaluator, NervousBusPublisher,
@@ -46,6 +49,9 @@ from .gpu_types import GPUJob, GPUResult
 # gpu_publisher.py — GPU job + result publishers
 from .gpu_publisher import GPUJobPublisher, GPUResultPublisher
 
+# gpu_admission.py — heartbeat-driven admission control + per-island fairness (s0u3.7)
+from .gpu_admission import GPUAdmissionGate, SubmitDecision
+
 # integration.py — role routing, budget middleware, deer-flow glue, nervous-bus publisher
 from .integration import (
     BudgetViolation,
@@ -66,12 +72,14 @@ __all__ = [
     "BudgetViolationMiddleware",
     "DeerFlowEvaluator",
     "DeerFlowResultSubscriber",
+    "GPUAdmissionGate",
     "GPUJob",
     "GPUJobPublisher",
     "GPUResult",
     "GPUResultPublisher",
     "NervousBusPublisher",
     "RoleSpec",
+    "SubmitDecision",
     "build_event",
     "iso_now",
     "make_deerflow_subscriber",
