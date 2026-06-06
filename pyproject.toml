@@ -52,6 +52,7 @@ packages = [
     "autobench.phase_kernel",
     "autobench.rsi",
     "autobench.sdf_kernel",
+    "autobench.racing_kernel",
     "autobench.sph_kernel",
     "autobench.terrain_kernel",
     "autobench.thermal_kernel",
