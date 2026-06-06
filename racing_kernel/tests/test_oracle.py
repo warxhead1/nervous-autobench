@@ -29,6 +29,7 @@ from autobench.racing_kernel.oracle import (
     _speed_score,
     _smoothness_score,
     _track_membership_score,
+    _rhythm_score,
     _simulate_lap,
     evaluate_on_instance,
     build_llm_prompt,
@@ -381,3 +382,153 @@ class TestRacingKernel:
         names = [inst.name for inst in kernel.problem_instances]
         assert "oval" in names
         assert "complex" in names
+
+
+# ---------------------------------------------------------------------------
+# Rhythm / cadence score tests (nervous-bus-71cn.4)
+# ---------------------------------------------------------------------------
+
+class TestRhythmScore:
+    """Tests for the spectral cadence term: _rhythm_score.
+
+    CADENCE NOTE: The series is sampled per-centerline-point (uniform
+    arc-length, not time), so "rhythm" is spatial-frequency cadence along
+    the lap, not wall-clock temporal rhythm.
+    """
+
+    # ---- degenerate inputs -------------------------------------------------
+
+    def test_constant_series_returns_neutral(self):
+        """A perfectly constant throttle has no AC spectral structure → neutral 0.5."""
+        s = _rhythm_score([0.7] * 100)
+        assert abs(s - 0.5) < 0.01, (
+            f"Constant series should return exactly 0.5, got {s:.4f}"
+        )
+
+    def test_short_series_returns_neutral(self):
+        """Fewer than 8 samples → not enough to estimate cadence → neutral 0.5."""
+        s = _rhythm_score([0.5] * 5)
+        assert s == 0.5
+
+    def test_empty_series_returns_neutral(self):
+        s = _rhythm_score([])
+        assert s == 0.5
+
+    def test_output_in_unit_interval(self):
+        """Result is always in [0, 1] regardless of input."""
+        import random
+        random.seed(0)
+        for _ in range(10):
+            series = [random.uniform(-2.0, 3.0) for _ in range(80)]
+            s = _rhythm_score(series)
+            assert 0.0 <= s <= 1.0, f"rhythm_score out of range: {s}"
+
+    # ---- discrimination: rhythmic vs arrhythmic ----------------------------
+
+    def test_rhythmic_beats_constant_by_margin(self):
+        """A sinusoidal throttle (periodic cadence) must score meaningfully
+        higher than a constant throttle.
+
+        Margin ≥ 0.15 in rhythm-term space (not total fitness).
+        """
+        N = 120
+        # Rhythmic: corner-like brake/throttle cycle, ~4 corners per lap
+        rhythmic = [math.sin(2 * math.pi * 4 * i / N) * 0.25 + 0.65 for i in range(N)]
+        constant = [0.7] * N  # DC only — no modulation
+
+        s_rhythmic = _rhythm_score(rhythmic)
+        s_constant = _rhythm_score(constant)  # should be 0.5 (neutral)
+
+        margin = s_rhythmic - s_constant
+        assert margin >= 0.15, (
+            f"Rhythmic series ({s_rhythmic:.3f}) should score ≥0.15 above "
+            f"constant ({s_constant:.3f}); margin={margin:.3f}"
+        )
+
+    def test_rhythmic_beats_white_noise_by_margin(self):
+        """A sinusoidal throttle must score meaningfully higher than white noise.
+
+        Margin ≥ 0.10 in rhythm-term space.
+        """
+        import random
+        random.seed(42)
+        N = 120
+        rhythmic = [math.sin(2 * math.pi * 4 * i / N) * 0.3 + 0.6 for i in range(N)]
+        white_noise = [random.uniform(0.0, 1.0) for _ in range(N)]
+
+        s_rhythmic = _rhythm_score(rhythmic)
+        s_noise = _rhythm_score(white_noise)
+
+        margin = s_rhythmic - s_noise
+        assert margin >= 0.10, (
+            f"Rhythmic ({s_rhythmic:.3f}) should score ≥0.10 above white noise "
+            f"({s_noise:.3f}); margin={margin:.3f}"
+        )
+
+    def test_structured_1f_beats_white_noise(self):
+        """A 1/f-structured series (correlated) should score higher than white noise."""
+        import random
+        random.seed(7)
+        N = 120
+        # Generate 1/f-like series via cumulative sum of Gaussian noise
+        steps = [random.gauss(0, 0.03) for _ in range(N)]
+        raw = [0.7]
+        for s in steps:
+            raw.append(max(0.2, min(1.0, raw[-1] + s)))
+        correlated = raw[:N]
+        white_noise = [random.uniform(0.0, 1.0) for _ in range(N)]
+
+        s_corr = _rhythm_score(correlated)
+        s_noise = _rhythm_score(white_noise)
+
+        assert s_corr > s_noise, (
+            f"Correlated (1/f-like) series ({s_corr:.3f}) should score above "
+            f"white noise ({s_noise:.3f})"
+        )
+
+    # ---- baseline seed integration -----------------------------------------
+
+    def test_seeds_return_throttle_series(self):
+        """_simulate_lap now returns (lap_time, offsets, speeds, throttles)."""
+        inst = generate_instance("oval")
+        for name, code in SEED_RACING_PROGRAMS:
+            fn = _compile_policy(code)
+            result = _simulate_lap(inst, fn)
+            assert len(result) == 4, (
+                f"_simulate_lap should return 4-tuple for {name}, got {len(result)}"
+            )
+            lap_time, offsets, speeds, throttles = result
+            assert len(throttles) == len(inst.centerline)
+            assert all(0.0 <= t <= 1.0 for t in throttles), (
+                f"{name}: throttles out of [0,1] range"
+            )
+
+    def test_seed_rhythm_scores_in_reasonable_range(self):
+        """Seeds are track-responsive (not constant, not pure noise).
+
+        Their rhythm scores should be in [0.40, 0.99] — not forced to extremes.
+        """
+        for track in ["oval", "chicane", "hairpin", "complex"]:
+            inst = generate_instance(track)
+            for name, code in SEED_RACING_PROGRAMS:
+                fn = _compile_policy(code)
+                _, _, _, throttles = _simulate_lap(inst, fn)
+                s = _rhythm_score(throttles)
+                assert 0.40 <= s <= 0.99, (
+                    f"Seed '{name}' on '{track}' rhythm score {s:.3f} outside "
+                    f"[0.40, 0.99] — rhythm term is too extreme"
+                )
+
+    def test_total_fitness_baselines_still_in_band(self):
+        """Adding the rhythm term (weight 0.10) must not push any seed outside
+        the [0.70, 0.90] fitness band on any track.
+        """
+        for track in ["oval", "chicane", "hairpin", "complex"]:
+            inst = generate_instance(track)
+            for name, code in SEED_RACING_PROGRAMS:
+                score = evaluate_on_instance(code, inst)
+                assert score is not None, f"{name} returned None on {track}"
+                assert 0.70 <= score <= 0.90, (
+                    f"Seed '{name}' on track '{track}' scored {score:.4f} after "
+                    f"adding rhythm term — outside [0.70, 0.90] target band"
+                )
