@@ -361,12 +361,10 @@ class MultiImproverEnsemble:
                 f"strategy must be one of {VALID_STRATEGIES!r}, got {self.strategy!r}"
             )
         if wrapper_factory is None:
-            # Late binding via the back-compat shim so tests that
-            # ``monkeypatch.setattr(autobench.multi_improver,
-            # "_default_wrapper_factory", ...)`` still take effect.
+            # Late binding so tests that patch ``_default_wrapper_factory`` take effect.
             import autobench.llm.ensemble
             self._wrapper_factory: Callable[[], Any] = (
-                autobench.multi_improver._default_wrapper_factory
+                autobench.llm.ensemble._default_wrapper_factory
             )
         else:
             self._wrapper_factory = wrapper_factory
@@ -518,12 +516,11 @@ class MultiImproverEnsemble:
 def _default_wrapper_factory() -> Any:
     """Build a fresh :class:`MiniMaxLLMWrapper` per call.
 
-    Imported lazily so tests can patch ``autobench.minimax_improver`` without
-    forcing MINIMAX_API_KEY at import time. Lookup goes via the back-compat
-    shim at the old root path so test monkeypatches still take effect.
+    Imported lazily so tests can patch the wrapper without
+    forcing MINIMAX_API_KEY at import time.
     """
     import autobench.llm.minimax  # noqa: WPS433 — lazy for tests
-    return autobench.minimax_improver.MiniMaxLLMWrapper()
+    return autobench.llm.minimax.MiniMaxLLMWrapper()
 
 
 # ---------------------------------------------------------------------------

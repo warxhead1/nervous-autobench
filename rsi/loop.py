@@ -159,11 +159,9 @@ class SelfImprovingHarness:
         if improver_fn is not None:
             return improver_fn
         if self.default_improver == "minimax":
-            # Lookup via the back-compat shim at the old root path so test
-            # monkeypatches on ``autobench.minimax_improver.MiniMaxLLMWrapper``
-            # still take effect.
+            # Lookup from the llm subpackage directly.
             import autobench.llm.minimax
-            wrapper = autobench.minimax_improver.MiniMaxLLMWrapper()
+            wrapper = autobench.llm.minimax.MiniMaxLLMWrapper()
             def _minimax_improve(
                 h, r, iteration=0, revert_history=None,
                 cross_advocate_context=None,

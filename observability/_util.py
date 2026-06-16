@@ -151,6 +151,17 @@ def _schemas_dir() -> Path:
     directory deeper than the legacy ``observability.py``, so we walk up one
     extra parent to land on the same ``<repo>/schemas`` path as before.
     """
+    import os
+    if env := os.environ.get("NBUS_ROOT"):
+        p = Path(env) / "schemas"
+        if p.is_dir():
+            return p
+    pkg_root = Path(__file__).resolve().parents[1]
+    if (pkg_root.parent / "schemas").is_dir():
+        return pkg_root.parent / "schemas"
+    sibling = pkg_root.parent / "nervous-bus"
+    if (sibling / "schemas").is_dir():
+        return sibling / "schemas"
     return Path(__file__).resolve().parents[2] / "schemas"
 
 
