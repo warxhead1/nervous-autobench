@@ -582,7 +582,7 @@ class FunSearchKernel(abc.ABC):
         try:
             import subprocess
             result = subprocess.run(
-                ["deer", "query", "--model", "minimax-m2.7", "--terse",
+                ["deer", "query", "--model", os.environ.get("MINIMAX_MODEL", "minimax-m2.7").lower(), "--terse",
                  f"Respond with ONLY a single ```cpp code block.\nPrompt:\n{prompt}"],
                 capture_output=True, text=True, timeout=self.config.llm_timeout,
             )

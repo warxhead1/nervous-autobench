@@ -32,7 +32,7 @@ from typing import Any, Callable
 logger = logging.getLogger(__name__)
 
 _VERDICTS = ("OK", "WA", "RE", "CE", "TLE", "MLE")
-_DEFAULT_MODEL = "MiniMax-M2.7"
+_DEFAULT_MODEL = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.7")
 _DEFAULT_TIMEOUT = 45.0
 _DEFAULT_MAX_TOKENS = 256
 

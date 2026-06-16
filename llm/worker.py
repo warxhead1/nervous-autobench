@@ -189,7 +189,7 @@ class MiniMaxWorker:
                     f"got {thinking_budget!r}"
                 )
 
-        self.model = model
+        self.model = os.environ.get("MINIMAX_MODEL", model)
         self.fallback_model = fallback_model
         self.temperature = temperature
         self.max_retries = max_retries

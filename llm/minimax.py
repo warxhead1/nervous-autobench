@@ -234,7 +234,7 @@ class MiniMaxLLMWrapper:
                     f"max_tokens ({max_tokens})"
                 )
 
-        self.model = model
+        self.model = os.environ.get("MINIMAX_MODEL", model)
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout_seconds = timeout_seconds

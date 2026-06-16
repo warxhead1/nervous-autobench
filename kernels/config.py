@@ -8,6 +8,7 @@ all kernels import `KernelConfig` from `autobench.kernels`.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Callable
 
@@ -37,7 +38,7 @@ class KernelConfig:
     plateau_generations: int | None = None
     plateau_epsilon: float = 1e-4
     plateau_hint: bool = True          # call deer for strategic advice mid-plateau
-    plateau_hint_model: str = "minimax-m2.7"
+    plateau_hint_model: str = os.environ.get("MINIMAX_MODEL", "minimax-m2.7").lower()
     # I/O
     llm_call_fn: Callable[[str], str] | None = None
     output_dir: Path | None = None

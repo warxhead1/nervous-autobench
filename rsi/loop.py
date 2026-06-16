@@ -242,9 +242,9 @@ class SelfImprovingHarness:
 
         # Model name for improver-call emission
         if self.default_improver == "minimax":
-            model_name = "minimax-m2.7"
+            model_name = os.environ.get("MINIMAX_MODEL", "minimax-m2.7").lower()
         elif self.default_improver == "minimax_ensemble":
-            model_name = "minimax-m2.7-ensemble"
+            model_name = f"{os.environ.get('MINIMAX_MODEL', 'minimax-m2.7').lower()}-ensemble"
         elif self.default_improver == "anthropic":
             model_name = "anthropic"
         else:

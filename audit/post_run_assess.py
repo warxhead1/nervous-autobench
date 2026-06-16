@@ -20,6 +20,7 @@ Usage (programmatic, from a kernel CLI after run):
 from __future__ import annotations
 
 import json
+import os
 import logging
 import subprocess
 import tempfile
@@ -31,7 +32,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 ARTIFACTS_ROOT = Path(__file__).parent.parent / "benchmarks" / "artifacts"
-ASSESSMENT_MODEL = "minimax-m2.7"
+ASSESSMENT_MODEL = os.environ.get("MINIMAX_MODEL", "minimax-m2.7").lower()
 LLM_TIMEOUT = 90.0
 
 
