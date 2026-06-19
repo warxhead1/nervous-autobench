@@ -181,6 +181,105 @@ def cmd_sandbox(args):
         return 124
 
 
+def cmd_preadmit(args):
+    """CPU pre-admission scorer — run the two cheap CPU gates before GPU dispatch.
+
+    Reads a shader from a file path (or stdin when the path is omitted or '-'),
+    runs the static + bounded-dynamic gates, and prints the JSON report. Exit 2
+    when the program is statically/dynamically unsafe (safe is False), else 0
+    (including the GPU-unavailable case where safe is None — it's a report).
+
+    Admission-record mode (opt-in via ``--work-type``): fuse this tier-1 result
+    with a tier-2 GPU shadow-dispatch verdict (``--shadow <path>``, the testbed's
+    JSON output; absent ⟹ tier-1-only record) into a ``tengine.shader.admission.v1``
+    record, print it, and — with ``--emit`` — fire it on the bus. Exit reflects the
+    honest ``admitted`` decision: 0 when admitted, 2 when not.
+    """
+    from .engines.preadmit import pre_admit
+
+    path = getattr(args, "shader", None)
+    if path is None or path == "-":
+        shader_src = sys.stdin.read()
+    else:
+        shader_path = Path(path)
+        if not shader_path.exists():
+            print(f"Error: shader file not found: {shader_path}", file=sys.stderr)
+            return 1
+        shader_src = shader_path.read_text(encoding="utf-8")
+
+    result = pre_admit(shader_src, language=args.language, kind=args.kind)
+
+    # Default behavior is unchanged: print the tier-1 report and exit on safety.
+    if getattr(args, "work_type", None) is None:
+        print(json.dumps(result.to_dict(), indent=2))
+        return 2 if result.safe is False else 0
+
+    # ----- Admission-record mode (tier-1 + optional tier-2 fusion) -----
+    if not getattr(args, "source_run_id", None):
+        print(
+            "Error: --source-run-id is required in admission mode (--work-type)",
+            file=sys.stderr,
+        )
+        return 1
+    if result.safe is None:
+        # No genuine tier-1 result (dynamic gate could not run); the assembler
+        # would refuse. Surface that honestly instead of crashing with a stack.
+        print(
+            "Error: CPU pre-screen did not run (no GPU for the dynamic gate); "
+            "cannot assemble a two-tier admission record",
+            file=sys.stderr,
+        )
+        print(json.dumps(result.to_dict(), indent=2), file=sys.stderr)
+        return 1
+
+    from .bus.shader_admission import (
+        build_shader_admission,
+        emit_shader_admission,
+        load_shadow_verdict,
+    )
+
+    shadow = None
+    shadow_path = getattr(args, "shadow", None)
+    if shadow_path:
+        shadow = load_shadow_verdict(shadow_path)
+        if shadow is None:
+            print(
+                f"Error: could not read tier-2 verdict JSON: {shadow_path}",
+                file=sys.stderr,
+            )
+            return 1
+
+    shader_id = getattr(args, "shader_id", None) or (
+        Path(path).stem if path and path != "-" else "stdin"
+    )
+
+    kwargs = dict(
+        work_type=int(args.work_type),
+        shader_id=shader_id,
+        source_run_id=args.source_run_id,
+        preadmit=result,
+        shadow=shadow,
+        require_full_coverage=bool(getattr(args, "require_full_coverage", False)),
+    )
+
+    if getattr(args, "emit", False):
+        envelope = emit_shader_admission(**kwargs)
+        if envelope is None:
+            # Emit is best-effort and never raises; fall back to local assembly
+            # so the operator still sees the record (and the exit code is honest).
+            data = build_shader_admission(**kwargs)
+            print(json.dumps(data, indent=2))
+            print("[preadmit] emit skipped (see stderr)", file=sys.stderr)
+        else:
+            data = envelope["data"]
+            print(json.dumps(envelope, indent=2))
+    else:
+        data = build_shader_admission(**kwargs)
+        print(json.dumps(data, indent=2))
+
+    return 0 if data["admitted"] else 2
+
+
 def cmd_trigger_daemon(args):
     """Start the producer-triggered cycle daemon (nervous-bus-1hlf).
 
@@ -350,6 +449,57 @@ def main():
     sandbox_parser.add_argument("code", help="Code to execute")
     sandbox_parser.add_argument("--language", default="python", help="Language")
 
+    preadmit_parser = subparsers.add_parser(
+        "preadmit",
+        help="CPU pre-admission scorer (static + bounded render gates) before GPU dispatch",
+    )
+    preadmit_parser.add_argument(
+        "shader",
+        nargs="?",
+        default="-",
+        help="Shader source file path ('-' or omitted = read stdin)",
+    )
+    preadmit_parser.add_argument("--language", default="glsl", help="Source language")
+    preadmit_parser.add_argument(
+        "--kind",
+        choices=["fragment", "sdf", "compute"],
+        default="fragment",
+        help="Shader kind (routes the static gate)",
+    )
+    # Admission-record mode: present --work-type switches from a tier-1 report to
+    # a fused tengine.shader.admission.v1 record (engine-agnostic: ids/paths only).
+    preadmit_parser.add_argument(
+        "--work-type",
+        type=int,
+        default=None,
+        help="Engine work-type id to admit against; presence enables admission-record mode",
+    )
+    preadmit_parser.add_argument(
+        "--source-run-id",
+        default=None,
+        help="ULID of the evolution run that produced the candidate (required in admission mode)",
+    )
+    preadmit_parser.add_argument(
+        "--shader-id",
+        default=None,
+        help="Stable candidate id (defaults to the input file stem, or 'stdin')",
+    )
+    preadmit_parser.add_argument(
+        "--shadow",
+        default=None,
+        help="Path to the tier-2 GPU shadow-dispatch verdict JSON (omit ⟹ tier-1-only record)",
+    )
+    preadmit_parser.add_argument(
+        "--require-full-coverage",
+        action="store_true",
+        help="Strict gate: a partial-coverage tier-2 PASS does NOT admit",
+    )
+    preadmit_parser.add_argument(
+        "--emit",
+        action="store_true",
+        help="Fire the assembled record on the bus (best-effort, non-blocking)",
+    )
+
     version_parser = subparsers.add_parser("version", help="Show version")
 
     # nervous-bus-1hlf — producer-triggered cycle daemon.
@@ -410,6 +560,7 @@ def main():
         "eval": cmd_eval,
         "scaffold": cmd_scaffold,
         "sandbox": cmd_sandbox,
+        "preadmit": cmd_preadmit,
         "version": cmd_version,
         "replay": cmd_replay,
         "trigger-daemon": cmd_trigger_daemon,
