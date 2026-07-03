@@ -1,0 +1,27 @@
+{
+  "config": {
+    "instances": ["perlin_like"],
+    "n_islands": 2,
+    "population_per_island": 4,
+    "generations": 2
+  },
+  "stop_reason": "request budget 24 reached (used=24, next wave=8)",
+  "llm_requests": 24,
+  "history": [
+    {"generation": 0, "best_fitness": 0.71, "best_id": "island0_gen0_nn", "best_island": 0,
+     "mean_pop_fitness": 0.58, "gen_seconds": 5.5, "eval_seconds": 1.4, "llm_requests": 16,
+     "fitness_std": 0.10, "code_diversity": 0.30}
+  ],
+  "best_program": {
+    "id": "island0_gen0_llm2", "fitness": 0.77,
+    "code": "float noise(vec3 p) {\n    return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);\n}",
+    "source": "llm", "island": 0, "generation": 0
+  },
+  "top_programs": [
+    {
+      "id": "island0_gen0_llm2", "fitness": 0.77, "fitness_variance": 0.03, "worst_fitness": 0.62,
+      "island": 0, "generation": 0, "computation_time_ms": 18.6, "source": "llm",
+      "code": "float noise(vec3 p) {\n    return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);\n}"
+    }
+  ]
+}

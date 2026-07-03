@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "budget": {
+    "window_seconds": 18000,
+    "window_max_requests": 1500,
+    "per_cycle_max_requests": 300
+  },
+  "goals": [
+    {
+      "id": "terrain-channel-sources",
+      "domain": "terrain",
+      "instances": ["rolling_hills", "river_valley", "volcanic_plateau"],
+      "priority": 3,
+      "want": 3,
+      "notes": "Height-field sources for Shader Garden's terrain material channel — mixed relief (smooth hills through eroded plateau) so the garden has more than one biome to draw texture-blend channels from. Evolved from terrain_kernel's Hurst-exponent oracle, not hand-authored."
+    },
+    {
+      "id": "noise-texture-generators",
+      "domain": "noise",
+      "instances": ["perlin_like", "fbm_2octave"],
+      "priority": 2,
+      "want": 3,
+      "notes": "General-purpose evolved noise(vec3) generators for the garden's procedural texture library. Scored against noise_kernel's spectral/statistical oracle (not a visual pass) — fitness reflects statistical fidelity to the target noise class, not curated 'looks nice' selection."
+    },
+    {
+      "id": "sdf-showcase-gyroid-family",
+      "domain": "sdf",
+      "instances": ["gyroid", "warped_sphere", "smooth_union"],
+      "priority": 1,
+      "want": 3,
+      "target_fitness": 0.9,
+      "tags": ["showcase", "periodic-surface"],
+      "notes": "Showcase-quality evolved SDFs in the gyroid family (periodic/organic minimal-surface style, plus two structurally related instances: a domain-warped sphere and a smooth-union composite) for the garden's front-page rotation. Lower priority than the two channel/texture goals — showcase pieces are a nice-to-have, not a garden dependency."
+    }
+  ]
+}
