@@ -109,7 +109,65 @@ kernel.candidate.evaluated.v1   — per-candidate fitness score
 kernel.generation.completed.v1  — generation summary across all islands
 kernel.island_reset.v1          — diversity reset triggered
 kernel.plateau_hint.v1          — plateau detection signal
+greenhouse.candidate.ready.v1   — validated GLSL candidate exported for Shader Garden
+greenhouse.cycle.completed.v1   — one budgeted greenhouse cycle finished (always, even skipped)
 ```
+
+---
+
+## Greenhouse — goal-directed background evolution
+
+`greenhouse/` is a budget-governed scheduler that runs the kernel FunSearch
+loops toward explicit goals (not open-ended search) and exports validated
+GLSL straight to Shader Garden. It runs as short, budgeted **cycles** —
+either invoked manually or on a systemd timer — never as a long-lived daemon.
+
+- **Goals manifest**: `$GREENHOUSE_GOALS` (default
+  `~/.config/nervous-bus/greenhouse-goals.json`) lists named goals — domain,
+  instances, priority, and how many validated candidates (`want`) each needs.
+  See `greenhouse/goals.example.json` for a worked manifest (terrain channel
+  sources, noise texture generators, an SDF showcase).
+- **Budget**: the manifest also carries a `budget` block — a sliding-window
+  request cap (`window_max_requests` / `window_seconds`) and a per-cycle cap
+  (`per_cycle_max_requests`). This is a **deliberate slice** of the shared
+  plan budget, never the whole cap — see `greenhouse/ledger.py` for why a
+  persistent on-disk ledger is used instead of `audit.budget_guard`'s
+  in-memory guard (cycles are separate processes; in-memory state doesn't
+  survive between them).
+- **Export**: validated candidates land in
+  `~/.cache/nervous-bus/greenhouse/drops/<goal_id>/` as Shader-Garden-shaped
+  JSON. Currently wired for the `sdf`, `terrain`, and `noise` domains (see
+  `greenhouse/export.py` for why the other five aren't yet — their GLSL
+  export paths are hand-authored per-domain and not yet generalized).
+
+```bash
+# One budgeted cycle (real LLM calls, spends from the ledger)
+python -m greenhouse cycle
+
+# No LLM calls — exercises goal selection, budget math, export, and both
+# bus emissions end-to-end from a bundled fixture
+python -m greenhouse dry-run
+
+# Window usage + per-goal want-vs-dropped table
+python -m greenhouse status
+```
+
+### Running on a schedule
+
+`greenhouse.service` + `greenhouse.timer` are provided at the repo root
+(same pattern as `continuous.service`) but **not installed or enabled** —
+do that deliberately:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp greenhouse.service greenhouse.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now greenhouse.timer
+```
+
+**Enabling the timer spends real requests from the shared plan budget** on
+`OnUnitInactiveSec` (every 2h by default) — set `per_cycle_max_requests` and
+`window_max_requests` in your goals manifest deliberately before enabling.
 
 ---
 

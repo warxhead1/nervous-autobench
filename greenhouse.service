@@ -1,0 +1,25 @@
+[Unit]
+Description=greenhouse — one budgeted FunSearch evolution cycle for Shader Garden
+Documentation=file:%h/projects/nervous-autobench/greenhouse/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Run as the invoking user (this is a --user unit). Adjust WorkingDirectory
+# if your checkout lives elsewhere.
+WorkingDirectory=%h/projects/nervous-autobench
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/usr/bin/env python3 -m greenhouse cycle
+
+# One cycle should never run long — the kernel loop is itself request-bounded
+# by greenhouse's own per-cycle budget (see greenhouse-goals.json).
+TimeoutStartSec=1800
+
+# Resource hygiene — a single cycle is a short, bounded burst, not a daemon.
+CPUQuota=150%
+MemoryMax=3G
+
+StandardOutput=journal
+StandardError=journal

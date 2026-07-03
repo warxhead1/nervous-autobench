@@ -1,0 +1,10 @@
+[Unit]
+Description=Run greenhouse.service on a schedule (budgeted background evolution)
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=2h
+Persistent=false
+
+[Install]
+WantedBy=timers.target
