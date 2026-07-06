@@ -457,7 +457,7 @@ class FirecrackerVM:
             resp = json.loads(data.decode("utf-8"))
             elapsed_ms = resp.get("elapsed_ms", 0.0)
             exit_code = resp.get("exit_code", -1)
-            verdict = Verdict.OK if exit_code == 0 else Verdict.ERROR
+            verdict = Verdict.OK if exit_code == 0 else Verdict.RE
             return ExecutionResult(
                 stdout=resp.get("stdout", ""),
                 stderr=resp.get("stderr", ""),

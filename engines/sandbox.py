@@ -475,15 +475,15 @@ class SandboxedExecutor:
             try:
                 start_vm = time.perf_counter()
                 fc_vm = self._firecracker_pool.acquire(timeout=max_time)
-                fc_result = fc_vm.run(run_cmd, timeout=max_time)
+                fc_result = fc_vm.exec(run_cmd, timeout=max_time)
                 self._firecracker_pool.release(fc_vm)
                 elapsed = (time.perf_counter() - start_vm) * 1000
                 return ExecutionResult(
                     stdout=fc_result.stdout,
                     stderr=fc_result.stderr,
-                    verdict=Verdict.OK if fc_result.returncode == 0 else Verdict.RE,
+                    verdict=Verdict.OK if fc_result.exit_code == 0 else Verdict.RE,
                     latency_ms=elapsed,
-                    exit_code=fc_result.returncode,
+                    exit_code=fc_result.exit_code,
                 )
             except Exception as e:
                 # Firecracker failed — fall back to subprocess
