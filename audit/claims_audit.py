@@ -9,10 +9,27 @@ Usage:
     # CI mode (exit 1 on any FAIL)
     python -m autobench.claims_audit --claims claims/claims.yaml --ci
 
+    # Offline-batch mode (regression-test claims against an archived evidence
+    # window — zero live-bus dependency, no Redis/zellij/subprocess calls on
+    # this path). --evidence-path accepts:
+    #   - a single plain .jsonl file
+    #   - a single gzip-compressed .jsonl.gz file
+    #   - a directory of rotated windows (mix of plain + .gz), read oldest-first
+    python -m autobench.claims_audit --claims claims/claims.yaml \
+        --offline --evidence-path /path/to/archived-debug.jsonl.gz --ci
+
 The evaluator reads:
   - ~/.cache/nervous-bus/debug.jsonl   (CloudEvents from autobench producers)
   - nervous-bus/tools/promotion_ledger.jsonl  (PromotionDecision entries)
   - nervous-bus/schemas/*.json          (schema definitions)
+
+Note the read path (stream_debug_ledger / stream_promotion_ledger) never
+imports Redis or opens a bus connection — it only ever reads local files, so
+--evidence-path (or plain --debug-ledger/--promotion-ledger pointed at an
+archive) already runs fully offline. --offline additionally documents that
+contract explicitly and refuses to combine with --watch/--emit, which are the
+only code paths that touch anything resembling a live channel (a local
+zellij-pipe subprocess, itself guarded and falling back to a file append).
 
 Emits nervous-bus.claims.result.v1 on the bus for integration with deer-flow's
 EvidenceCollector (already subscribed to autobench.*).
@@ -22,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import gzip
 import json
 import os
 import signal
@@ -49,6 +67,38 @@ def _ulid() -> str:
 def _iso_now() -> str:
     from datetime import datetime
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+# ─────────────────────────────────────────────────────────────────
+# Offline-batch evidence resolution (archived debug.jsonl windows)
+# ─────────────────────────────────────────────────────────────────
+
+
+def _resolve_ledger_files(path: Path) -> list[Path]:
+    """Resolve a ledger path to an ordered list of files to actually read.
+
+    ``path`` may be:
+      - a single plain ``.jsonl`` file (returned as-is)
+      - a single gzip-compressed ``.jsonl.gz`` file (returned as-is)
+      - a directory containing a rotated evidence window: any mix of plain
+        and ``.gz`` files whose name contains ``.jsonl`` (e.g.
+        ``debug.jsonl``, ``debug.jsonl.1``, ``debug.jsonl.2.gz``). Files are
+        returned oldest-mtime-first so replay order matches original
+        append order, with filename as a stable tiebreaker.
+
+    Never touches the network or a live bus — pure local filesystem reads.
+    """
+    if path.is_dir():
+        files = [p for p in path.iterdir() if p.is_file() and ".jsonl" in p.name]
+        return sorted(files, key=lambda p: (p.stat().st_mtime, p.name))
+    return [path]
+
+
+def _open_ledger_file(path: Path):
+    """Open a single ledger file, transparently decompressing ``.gz``."""
+    if path.suffix == ".gz":
+        return gzip.open(path, "rt", encoding="utf-8")
+    return open(path, encoding="utf-8")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -217,30 +267,39 @@ class ClaimsAuditor:
         return self._claims
 
     def stream_debug_ledger(self):
-        """Stream NBEvidenceRecord from debug.jsonl."""
-        if not self.debug_ledger.exists():
-            return
-        with open(self.debug_ledger) as fh:
-            for line in fh:
-                if line.strip():
-                    try:
-                        event = json.loads(line)
-                        yield NBEvidenceRecord.from_debug_event(event)
-                    except json.JSONDecodeError:
-                        continue
+        """Stream NBEvidenceRecord from debug.jsonl.
+
+        ``self.debug_ledger`` may be the live cache file, a single archived
+        (optionally gzip-compressed) jsonl file, or a directory of rotated
+        windows — see ``_resolve_ledger_files``. Purely a local file read in
+        every case.
+        """
+        yield from self._stream_ledger(self.debug_ledger, NBEvidenceRecord.from_debug_event)
 
     def stream_promotion_ledger(self):
-        """Stream NBEvidenceRecord from promotion_ledger.jsonl."""
-        if not self.promotion_ledger.exists():
+        """Stream NBEvidenceRecord from promotion_ledger.jsonl (or an archived
+        equivalent — single file, .gz file, or directory of rotated windows).
+        """
+        yield from self._stream_ledger(self.promotion_ledger, NBEvidenceRecord.from_promotion_entry)
+
+    def _stream_ledger(self, path: Path, record_factory):
+        """Shared read path for both ledgers: resolve files, decode lines,
+        skip anything unparseable. No network / bus access."""
+        if not path.exists():
             return
-        with open(self.promotion_ledger) as fh:
-            for line in fh:
-                if line.strip():
-                    try:
-                        entry = json.loads(line)
-                        yield NBEvidenceRecord.from_promotion_entry(entry)
-                    except json.JSONDecodeError:
-                        continue
+        for file_path in _resolve_ledger_files(path):
+            try:
+                fh = _open_ledger_file(file_path)
+            except OSError:
+                continue
+            with fh:
+                for line in fh:
+                    if line.strip():
+                        try:
+                            event = json.loads(line)
+                            yield record_factory(event)
+                        except json.JSONDecodeError:
+                            continue
 
     def evaluate_all(self) -> list[NBClaimResult]:
         self.load_claims()
@@ -547,6 +606,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="CI mode: exit 1 if any claim FAIL",
     )
     parser.add_argument(
+        "--offline",
+        action="store_true",
+        help=(
+            "Offline-batch mode: evaluate an archived evidence window with "
+            "zero live-bus dependency. Pairs with --evidence-path. Refuses "
+            "to combine with --watch or --emit (the only paths that touch "
+            "anything bus-adjacent)."
+        ),
+    )
+    parser.add_argument(
+        "--evidence-path",
+        type=Path,
+        default=None,
+        help=(
+            "Archived evidence source for --offline mode: a single "
+            "debug.jsonl file, a single gzip-compressed debug.jsonl.gz "
+            "file, or a directory of rotated windows (plain + .gz, read "
+            "oldest-first). Overrides --debug-ledger when given."
+        ),
+    )
+    parser.add_argument(
         "--report-json",
         action="store_true",
         help="Output machine-readable JSON to stdout",
@@ -610,9 +690,19 @@ def main() -> None:
     if not claims_path.exists():
         sys.exit(f"claims not found: {claims_path}")
 
+    if args.offline:
+        if args.watch:
+            parser.error("--offline is incompatible with --watch (offline mode is a single batch pass)")
+        if args.emit:
+            parser.error("--offline is incompatible with --emit (offline mode has zero live-bus dependency)")
+        if args.evidence_path is None and not Path(args.debug_ledger).expanduser().exists():
+            parser.error("--offline requires --evidence-path (or an existing --debug-ledger) pointing at archived evidence")
+
+    evidence_path = args.evidence_path if args.evidence_path is not None else args.debug_ledger
+
     auditor = ClaimsAuditor(
         claims_path=claims_path,
-        debug_ledger_path=Path(args.debug_ledger).expanduser().resolve(),
+        debug_ledger_path=Path(evidence_path).expanduser().resolve(),
         promotion_ledger_path=Path(args.promotion_ledger).expanduser().resolve(),
     )
 

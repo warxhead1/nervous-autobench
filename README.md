@@ -171,6 +171,26 @@ systemctl --user enable --now greenhouse.timer
 
 ---
 
+## Claims audit — offline-batch mode
+
+`audit/claims_audit.py` evaluates `claims/claims.yaml` (EDD claim specs) against evidence in `debug.jsonl` and `promotion_ledger.jsonl`. The read path is pure local-file I/O — no Redis, no bus connection — so it already runs with zero live-bus dependency; `--offline` makes that contract explicit and CI-safe:
+
+```bash
+# Regression-test claims against an archived evidence window in CI, no live
+# bus/Redis required. --evidence-path accepts:
+#   - a single plain debug.jsonl file
+#   - a single gzip-compressed debug.jsonl.gz file
+#   - a directory of rotated windows (mixed plain + .gz, read oldest-first)
+python -m autobench.audit.claims_audit \
+    --claims claims/claims.yaml \
+    --offline --evidence-path artifacts/2026-07-19-debug-window/ \
+    --ci
+```
+
+`--offline` refuses to combine with `--watch` or `--emit` (the only code paths that touch anything bus-adjacent — a local `zellij pipe` subprocess, itself guarded and falling back to a file append). Exit code matches the live `--ci` path: `0` if every claim `PASS`es, `1` on any `FAIL`.
+
+---
+
 ## Security
 
 This repo uses [gitleaks](https://github.com/gitleaks/gitleaks) for secret scanning.
